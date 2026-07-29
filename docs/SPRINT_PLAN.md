@@ -39,7 +39,8 @@
 - [x] `.env.example` 작성 (`DATABASE_URL`, `AUTH_SECRET`, `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`)
 - [x] `npx tsc --noEmit` + `npm run build` 통과 확인 (DB/외부 키 없는 현재 상태 기준)
 - [x] Vercel CLI 설치 (devDependency, `npx vercel` 사용) + `vercel:login`/`link`/`env:pull`/`deploy`/`deploy:prod` npm 스크립트 추가
-- [x] Vercel 프로젝트 연결 — 대시보드에서 GitHub 리포(`hyhys7/muk-mate`) 임포트로 `muk-mate` 프로젝트 생성, 첫 배포 확인. CLI 로그인(`vercel login`) 후 `vercel link --yes --project muk-mate`로 로컬 디렉토리 연결 완료 (`.vercel/project.json` 생성, `.gitignore`에 이미 포함되어 있어 커밋 안 됨)
+- [x] Vercel 프로젝트 연결 — 대시보드에서 GitHub 리포(`hyhys7/muk-mate`) 임포트로 `muk-mate` 프로젝트 생성. CLI 로그인(`vercel login`) 후 `vercel link --yes --project muk-mate`로 로컬 디렉토리 연결 완료 (`.vercel/project.json` 생성, `.gitignore`에 이미 포함되어 있어 커밋 안 됨)
+- [x] **버그 발견 및 수정**: 실제 배포 2건이 전부 Error였음(`vercel ls`로 확인, 라이브 URL 404) — 원인은 리포에 남아있던 stale `pnpm-lock.yaml`을 Vercel이 감지해 pnpm으로 설치를 시도하면서 `ERR_PNPM_OUTDATED_LOCKFILE` 발생(npm으로 계속 패키지를 추가해왔기 때문에 pnpm-lock.yaml이 package.json과 불일치). pnpm은 애초에 로컬에 설치도 안 되어 있었고 npm이 실제 사용 중인 패키지 매니저였음 → `pnpm-lock.yaml` 삭제로 해결
 - [ ] **[사용자 액션 필요]** Neon 프로젝트 생성 + connection string을 `.env.local`에 설정
 - [ ] **[사용자 액션 필요]** `zones`/`chat_rooms` 시드 실행: `npm run db:seed`
 - [ ] **[사용자 액션 필요]** Vercel 환경변수 등록: `DATABASE_URL`, `AUTH_SECRET`(`npx auth secret`으로 생성 가능) — `vercel env add`로 CLI에서 바로 추가 가능. `NAVER_CLIENT_ID`/`SECRET`은 Phase 3에서 발급 후 등록
