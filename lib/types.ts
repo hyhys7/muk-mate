@@ -47,6 +47,8 @@ export interface Pot {
   status: PotStatus
   isLocationVerified: boolean
   distanceMeters: number
+  pendingCount?: number
+  chatRoomId?: string
   createdAt: string
 }
 

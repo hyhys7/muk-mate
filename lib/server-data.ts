@@ -194,8 +194,48 @@ export async function getMyHostedPots(userId: string): Promise<Pot[]> {
     .where(eq(pots.hostId, userId))
     .orderBy(desc(pots.createdAt))) as PotRow[]
 
-  const agg = await getApprovedAggregates(rows.map((r) => r.id))
-  return rows.map((r) => mapPotRow(r, agg.get(r.id) ?? { count: 0, amount: 0 }))
+  if (rows.length === 0) return []
+
+  const potIds = rows.map((r) => r.id)
+  const aggPromise = getApprovedAggregates(potIds)
+
+  const pendingPromise = db
+    .select({ potId: participations.potId })
+    .from(participations)
+    .where(
+      and(
+        inArray(participations.potId, potIds),
+        eq(participations.approvalStatus, 'PENDING'),
+      ),
+    )
+
+  const roomPromise = db
+    .select({ id: chatRooms.id, potId: chatRooms.potId })
+    .from(chatRooms)
+    .where(inArray(chatRooms.potId, potIds))
+
+  const [agg, pendingRows, roomRows] = await Promise.all([
+    aggPromise,
+    pendingPromise,
+    roomPromise,
+  ])
+
+  const pendingMap = new Map<string, number>()
+  for (const p of pendingRows) {
+    pendingMap.set(p.potId, (pendingMap.get(p.potId) ?? 0) + 1)
+  }
+
+  const roomMap = new Map<string, string>()
+  for (const r of roomRows) {
+    if (r.potId) roomMap.set(r.potId, r.id)
+  }
+
+  return rows.map((r) => {
+    const pot = mapPotRow(r, agg.get(r.id) ?? { count: 0, amount: 0 })
+    pot.pendingCount = pendingMap.get(r.id) ?? 0
+    pot.chatRoomId = roomMap.get(r.id)
+    return pot
+  })
 }
 
 /**
@@ -225,12 +265,24 @@ export async function getMyApplications(
     .orderBy(desc(participations.createdAt))
 
   const mine = rows.filter((r) => r.hostId !== userId)
-  const potMap = await getPotsByIds(mine.map((r) => r.potId))
+  if (mine.length === 0) return []
+
+  const potIds = [...new Set(mine.map((r) => r.potId))]
+  const [potMap, roomRows] = await Promise.all([
+    getPotsByIds(potIds),
+    db.select({ id: chatRooms.id, potId: chatRooms.potId }).from(chatRooms).where(inArray(chatRooms.potId, potIds)),
+  ])
+
+  const roomMap = new Map<string, string>()
+  for (const r of roomRows) {
+    if (r.potId) roomMap.set(r.potId, r.id)
+  }
 
   const result: { participation: Participation; pot: Pot }[] = []
   for (const r of mine) {
     const pot = potMap.get(r.potId)
     if (!pot) continue
+    const potWithRoom = { ...pot, chatRoomId: roomMap.get(r.potId) }
     result.push({
       participation: {
         id: r.id,
@@ -242,7 +294,7 @@ export async function getMyApplications(
         approvalStatus: r.approvalStatus,
         createdAt: r.createdAt.toISOString(),
       },
-      pot,
+      pot: potWithRoom,
     })
   }
   return result
