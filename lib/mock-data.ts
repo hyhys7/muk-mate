@@ -2,7 +2,6 @@ import type {
   ChatRoom,
   Message,
   Participation,
-  Place,
   Pot,
   User,
 } from '@/lib/types'
@@ -399,28 +398,5 @@ export const MESSAGES: Record<string, Message[]> = {
   ],
 }
 
-// ─────────────────────────────────────────────────────────────
-// 장소 검색 결과 (문자열 필터링용)
-// ─────────────────────────────────────────────────────────────
-export const PLACES: Place[] = [
-  { id: 'pl1', name: '깐부치킨 전북대점', category: '치킨', address: '전주시 덕진구 백제대로 567', distanceMeters: 120 },
-  { id: 'pl2', name: '이삭토스트 구정문점', category: '분식·토스트', address: '전주시 덕진구 명륜3길 12', distanceMeters: 320 },
-  { id: 'pl3', name: '탕화쿵푸 마라탕', category: '중식·마라', address: '전주시 덕진구 기린대로 21', distanceMeters: 640 },
-  { id: 'pl4', name: '피자스쿨 신정문점', category: '피자', address: '전주시 덕진구 소양로 88', distanceMeters: 480 },
-  { id: 'pl5', name: '엽기떡볶이 전북대점', category: '분식', address: '전주시 덕진구 백제대로 601', distanceMeters: 210 },
-  { id: 'pl6', name: '봉구스밥버거 구정문', category: '분식', address: '전주시 덕진구 명륜3길 30', distanceMeters: 350 },
-  { id: 'pl7', name: '맘스터치 신정문점', category: '버거', address: '전주시 덕진구 소양로 60', distanceMeters: 520 },
-  { id: 'pl8', name: '스시로우 전주점', category: '일식', address: '전주시 덕진구 백제대로 700', distanceMeters: 130 },
-]
-
-// ─────────────────────────────────────────────────────────────
-// 자주 쓰는 수령 장소 (장소 검색 초기 상태용)
-// ─────────────────────────────────────────────────────────────
-export const FREQUENT_PICKUP_PLACES: Place[] = [
-  { id: 'fp1', name: '진수관 1층 로비', category: '수령 장소', address: '전북대학교 진수관', distanceMeters: 120 },
-  { id: 'fp2', name: '참빛관 로비', category: '수령 장소', address: '전북대학교 참빛관', distanceMeters: 300 },
-  { id: 'fp3', name: '구정문 앞 GS25', category: '수령 장소', address: '전주시 덕진구 백제대로 앞', distanceMeters: 320 },
-  { id: 'fp4', name: '학군단 앞', category: '수령 장소', address: '전북대학교 학군단', distanceMeters: 210 },
-]
-
-export const RECENT_PLACE_KEYWORDS = ['깐부치킨', '마라탕', '이삭토스트', '엽기떡볶이']
+// 장소 검색은 Phase 3부터 카카오 로컬 API를 실시간으로 호출한다 (app/api/places/search) —
+// 목 데이터로 흉내낼 필요가 없어져서 여기 있던 PLACES/FREQUENT_PICKUP_PLACES/RECENT_PLACE_KEYWORDS는 제거함.

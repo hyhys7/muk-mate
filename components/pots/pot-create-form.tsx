@@ -6,35 +6,21 @@ import Link from 'next/link'
 import {
   ArrowLeft,
   Building2,
-  Clock,
   DollarSign,
   Info,
   MapPin,
+  Search,
   ShoppingBag,
   Sparkles,
   Users,
 } from 'lucide-react'
 import { createPot } from '@/lib/api'
 import { ZONES } from '@/lib/constants'
-import type { TargetType, ZoneCode } from '@/lib/types'
+import type { Place, TargetType, ZoneCode } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-
-const STORE_PRESETS = [
-  '깐부치킨 전북대점',
-  '이삭토스트 전북대구정문점',
-  '탕화쿵푸 마라탕',
-  '동대문엽기떡볶이 전북대점',
-  '스시로우 전주점',
-]
-
-const PICKUP_PRESETS = [
-  '진수관 1층 로비',
-  '구정문 GS25 앞',
-  '기숙사 참빛관 입구',
-  '사대부고 정문 버스정류장',
-]
+import { PlaceSearchDialog } from '@/components/pots/place-search-dialog'
 
 const DEADLINE_OPTIONS = [
   { label: '15분 후', value: 15 },
@@ -43,13 +29,54 @@ const DEADLINE_OPTIONS = [
   { label: '1시간 후', value: 60 },
 ]
 
+function PlacePickerButton({
+  label,
+  placeholder,
+  place,
+  onOpen,
+}: {
+  label: string
+  placeholder: string
+  place: Place | null
+  onOpen: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-semibold text-muted-foreground">{label} *</label>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex h-auto min-h-11 items-center gap-2.5 rounded-xl border border-border bg-background px-3 py-2.5 text-left transition hover:border-primary/50 active:scale-[0.99]"
+      >
+        {place ? (
+          <>
+            <MapPin className="size-4 shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-foreground">{place.name}</p>
+              <p className="truncate text-xs text-muted-foreground">{place.address}</p>
+            </div>
+            <span className="shrink-0 text-xs font-semibold text-primary">변경</span>
+          </>
+        ) : (
+          <>
+            <Search className="size-4 shrink-0 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">{placeholder}</span>
+          </>
+        )}
+      </button>
+    </div>
+  )
+}
+
 export function PotCreateForm() {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
 
   // Form states
-  const [storeName, setStoreName] = useState('')
-  const [storeAddress, setStoreAddress] = useState('')
+  const [store, setStore] = useState<Place | null>(null)
+  const [pickup, setPickup] = useState<Place | null>(null)
+  const [storeDialogOpen, setStoreDialogOpen] = useState(false)
+  const [pickupDialogOpen, setPickupDialogOpen] = useState(false)
   const [orderSummary, setOrderSummary] = useState('')
   const [zoneCode, setZoneCode] = useState<ZoneCode>('DORM')
   const [targetType, setTargetType] = useState<TargetType>('HEADCOUNT')
@@ -57,24 +84,22 @@ export function PotCreateForm() {
   const [deliveryFee, setDeliveryFee] = useState<number>(4000)
   const [deadlineMinutes, setDeadlineMinutes] = useState<number>(30)
   const [pickupMinutes, setPickupMinutes] = useState<number>(60)
-  const [pickupName, setPickupName] = useState('')
-  const [pickupAddress, setPickupAddress] = useState('')
   const [pickupNote, setPickupNote] = useState('')
   const [extraNote, setExtraNote] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!storeName.trim()) {
-      setErrorMsg('가게 이름을 입력해주세요.')
+    if (!store) {
+      setErrorMsg('가게를 검색해서 선택해주세요.')
       return
     }
     if (!orderSummary.trim()) {
       setErrorMsg('주문 요약 또는 함께 주문할 메뉴를 입력해주세요.')
       return
     }
-    if (!pickupName.trim()) {
-      setErrorMsg('수령 장소를 입력해주세요.')
+    if (!pickup) {
+      setErrorMsg('수령 장소를 검색해서 선택해주세요.')
       return
     }
     if (targetValue <= 0) {
@@ -86,8 +111,10 @@ export function PotCreateForm() {
       setSubmitting(true)
       setErrorMsg('')
       const created = await createPot({
-        storeName: storeName.trim(),
-        storeAddress: storeAddress.trim(),
+        storeName: store.name,
+        storeAddress: store.address,
+        storeLat: store.lat,
+        storeLng: store.lng,
         orderSummary: orderSummary.trim(),
         zoneCode,
         targetType,
@@ -95,8 +122,10 @@ export function PotCreateForm() {
         deliveryFee,
         deadlineMinutes,
         pickupMinutes,
-        pickupName: pickupName.trim(),
-        pickupAddress: pickupAddress.trim(),
+        pickupName: pickup.name,
+        pickupAddress: pickup.address,
+        pickupLat: pickup.lat,
+        pickupLng: pickup.lng,
         pickupNote: pickupNote.trim(),
         extraNote: extraNote.trim(),
       })
@@ -104,7 +133,7 @@ export function PotCreateForm() {
       router.refresh()
     } catch (err) {
       console.error(err)
-      setErrorMsg('모집 글 등록에 실패했습니다. 다시 시도해 주세요.')
+      setErrorMsg(err instanceof Error ? err.message : '모집 글 등록에 실패했습니다. 다시 시도해 주세요.')
       setSubmitting(false)
     }
   }
@@ -137,28 +166,12 @@ export function PotCreateForm() {
             <h2 className="font-bold text-foreground">가게 정보</h2>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-muted-foreground">가게 이름 *</label>
-            <Input
-              placeholder="예: 깐부치킨 전북대점"
-              value={storeName}
-              onChange={(e) => setStoreName(e.target.value)}
-              className="h-11 rounded-xl"
-            />
-            {/* 추천 프리셋 */}
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {STORE_PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => setStoreName(preset)}
-                  className="rounded-lg bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
-                >
-                  + {preset.split(' ')[0]}
-                </button>
-              ))}
-            </div>
-          </div>
+          <PlacePickerButton
+            label="가게"
+            placeholder="가게 이름으로 검색하기"
+            place={store}
+            onOpen={() => setStoreDialogOpen(true)}
+          />
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-muted-foreground">활동 권역 선택 *</label>
@@ -343,27 +356,12 @@ export function PotCreateForm() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-muted-foreground">수령 장소 명칭 *</label>
-            <Input
-              placeholder="예: 진수관 1층 로비, 구정문 GS25 앞"
-              value={pickupName}
-              onChange={(e) => setPickupName(e.target.value)}
-              className="h-11 rounded-xl"
-            />
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {PICKUP_PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => setPickupName(preset)}
-                  className="rounded-lg bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
-                >
-                  + {preset}
-                </button>
-              ))}
-            </div>
-          </div>
+          <PlacePickerButton
+            label="수령 장소"
+            placeholder="수령 장소로 검색하기"
+            place={pickup}
+            onOpen={() => setPickupDialogOpen(true)}
+          />
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-muted-foreground">수령 관련 전달사항 (선택)</label>
@@ -402,6 +400,19 @@ export function PotCreateForm() {
           )}
         </Button>
       </form>
+
+      <PlaceSearchDialog
+        open={storeDialogOpen}
+        onOpenChange={setStoreDialogOpen}
+        title="가게 검색"
+        onSelect={setStore}
+      />
+      <PlaceSearchDialog
+        open={pickupDialogOpen}
+        onOpenChange={setPickupDialogOpen}
+        title="수령 장소 검색"
+        onSelect={setPickup}
+      />
     </div>
   )
 }

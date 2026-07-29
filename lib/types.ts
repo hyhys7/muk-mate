@@ -90,5 +90,8 @@ export interface Place {
   name: string
   category: string
   address: string
-  distanceMeters: number
+  /** 위도 */
+  lat: number
+  /** 경도 */
+  lng: number
 }

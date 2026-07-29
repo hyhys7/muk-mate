@@ -17,7 +17,7 @@
 | 0 | 인프라 기반 (DB/배포/인증 골격) | ✅ 완료 |
 | 1 | 계정 (AUTH) | ✅ 완료 (로그아웃 버튼 UI는 Phase 5로 이관) |
 | 2 | 공동주문 핵심 (ORDER) | ✅ 완료 (모집글 수정 화면만 별도 보류) |
-| 3 | 카카오 장소 검색 (ORDER-09) | ☐ 시작 전 |
+| 3 | 카카오 장소 검색 (ORDER-09) | ✅ 완료 |
 | 4 | 채팅 (CHAT) | ☐ 시작 전 (화면 stub만 존재) |
 | 5 | 마이페이지 (MY) | ☐ 시작 전 (화면 stub만 존재) |
 | 6 | P1 선택 기능 | ☐ 시작 전 |
@@ -99,15 +99,15 @@
 
 목표: 자유 텍스트 입력을 실제 장소 검색으로 교체. `mukmate-kakao-places` 스킬 참고.
 
-- [ ] **[사용자 액션 필요]** 카카오 디벨로퍼스에서 애플리케이션 등록 후 **REST API 키** 발급 (사람이 직접 처리 — API 키 발급은 대행 불가). 네이버와 달리 Client ID/Secret 쌍이 아니라 **키 1개**만 발급됨
-- [ ] `app/api/places/search` Route Handler — 서버에서만 카카오 로컬 API(`GET https://dapi.kakao.com/v2/local/search/keyword.json`) 호출, `Authorization: KakaoAK {REST_API_KEY}` 헤더 사용, 필요한 필드(장소명/주소/위경도)만 클라이언트에 반환
-- [ ] **신규 화면 #6 — 장소·주소 검색** 모달/페이지 제작 (모달 권장, PRD §6-2)
-- [ ] `pot-create-form.tsx`의 가게명/수령장소 자유 텍스트 입력을 위 검색 모달 연동으로 교체 (현재는 프리셋 칩 + 자유 입력만 있음)
-- [ ] 검색 결과 선택 시 `store_lat/lng`, `pickup_lat/lng` 등 좌표까지 함께 저장되는지 확인 (카카오 로컬 API는 `x`=경도, `y`=위도로 응답하니 저장 시 헷갈리지 않게 주의)
-- [ ] 수령 장소는 검색 결과 + 직접 설명(`pickup_note`) 동시 입력 가능하도록 유지
-- [ ] `.env.local`/Vercel 환경변수에 `KAKAO_REST_API_KEY` 등록 (`.env.example`에 이미 이름은 반영됨)
+- [x] 카카오 디벨로퍼스 앱 등록 + REST API 키 발급(사용자 완료). **주의사항 하나 발견**: 2024-12부터 신규 앱은 발급만으로 안 되고 앱 설정에서 "카카오맵" 사용 설정을 별도로 ON 해야 로컬 API가 열림 — 처음엔 `NotAuthorizedError(OPEN_MAP_AND_LOCAL service disabled)`로 막혔다가 사용자가 대시보드에서 켠 뒤 정상화됨
+- [x] `.env.local`/Vercel(Production/Preview/Development) 전체에 `KAKAO_REST_API_KEY` 등록
+- [x] `app/api/places/search` Route Handler — 서버에서만 카카오 로컬 API(`GET https://dapi.kakao.com/v2/local/search/keyword.json`) 호출, `Authorization: KakaoAK {REST_API_KEY}` 헤더 사용, 로그인 필요, 장소명/주소/카테고리/위경도만 클라이언트에 반환 (원본 카카오 응답 그대로 안 넘김)
+- [x] **신규 화면 #6 — 장소·주소 검색**을 다이얼로그로 제작(`components/pots/place-search-dialog.tsx`) — 손으로 새로 만들지 않고 프로젝트에 이미 있던 `@base-ui/react` 기반 shadcn 컨벤션을 따라 `npx shadcn add dialog`로 `components/ui/dialog.tsx`를 정식 추가한 뒤 그 위에 구현
+- [x] `pot-create-form.tsx`의 가게명/수령장소 자유 텍스트 입력 + 프리셋 칩을 전부 제거하고 검색 다이얼로그 연동으로 교체 — PRD §5-1 표가 애초에 가게명은 "검색 결과에서 선택"이라고 못박고 있어서, 자유 입력을 아예 없애고 검색으로만 선택 가능하게 함 (수령 장소는 검색 선택 + `pickup_note` 자유 입력을 그대로 병행)
+- [x] 검색 결과 선택 시 `store_lat/lng`, `pickup_lat/lng` 좌표까지 저장되는 것 확인 — **카카오 응답은 `x`=경도, `y`=위도**라 반대로 넣기 쉬운 함정이 있어서 `app/api/places/search/route.ts`에서 매핑할 때 주석으로 명시해둠. `isLocationVerified`가 실제로 `true`가 되는 것까지 E2E로 확인
+- [x] `lib/types.ts`의 `Place` 타입에서 mock 시절 쓰던 `distanceMeters`(가짜 거리)를 제거하고 `lat`/`lng` 추가. `lib/mock-data.ts`의 `PLACES`/`FREQUENT_PICKUP_PLACES`/`RECENT_PLACE_KEYWORDS`(더 이상 쓰이지 않음)와 `lib/api.ts`의 `getPlaceSuggestions`(최근/자주 쓰는 장소 — PRD가 요구한 적 없는 mock 전용 기능이라 실 구현 없이 삭제)도 함께 정리
 
-**완료 기준**: 브라우저 devtools Network 탭에 카카오 REST API 키가 노출되지 않고, 검색 결과로 가게/수령 장소를 선택해 모집글에 등록할 수 있다.
+**완료 기준**: 브라우저 devtools Network 탭에 카카오 REST API 키가 노출되지 않고, 검색 결과로 가게/수령 장소를 선택해 모집글에 등록할 수 있다. → **E2E로 확인 완료**: 비로그인 검색 401, 로그인 후 검색 결과에 REST 키 미포함, 검색 결과로 만든 모집글의 `isLocationVerified=true`.
 
 ---
 

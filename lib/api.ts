@@ -9,12 +9,9 @@
 import {
   CHAT_ROOMS,
   CURRENT_USER_ID,
-  FREQUENT_PICKUP_PLACES,
   MESSAGES,
   PARTICIPATIONS,
-  PLACES,
   POTS,
-  RECENT_PLACE_KEYWORDS,
 } from '@/lib/mock-data'
 import type {
   ChatRoom,
@@ -43,6 +40,8 @@ async function parseJsonResponse<T>(res: Response): Promise<T> {
 export async function createPot(input: {
   storeName: string
   storeAddress?: string
+  storeLat?: number
+  storeLng?: number
   orderSummary: string
   zoneCode: ZoneCode
   targetType: 'HEADCOUNT' | 'AMOUNT'
@@ -52,6 +51,8 @@ export async function createPot(input: {
   pickupMinutes: number
   pickupName: string
   pickupAddress?: string
+  pickupLat?: number
+  pickupLng?: number
   pickupNote?: string
   extraNote?: string
 }): Promise<Pot> {
@@ -139,19 +140,10 @@ export async function getMessages(roomId: string): Promise<Message[]> {
   return delay(MESSAGES[roomId] ?? [])
 }
 
-/** 장소 검색 (지금은 문자열 필터링만) */
+/** 장소 검색 — GET /api/places/search?q=, 카카오 로컬 API 서버 프록시 */
 export async function searchPlaces(keyword: string): Promise<Place[]> {
-  // TODO: replace with real API call — GET /api/places/search?q= (Phase 3)
   const q = keyword.trim()
-  if (!q) return delay([])
-  return delay(PLACES.filter((p) => p.name.includes(q) || p.category.includes(q)))
-}
-
-/** 자주 쓰는 수령 장소 / 최근 검색어 (검색 전 상태용) */
-export async function getPlaceSuggestions(): Promise<{
-  frequent: Place[]
-  recent: string[]
-}> {
-  // TODO: replace with real API call — GET /api/places/suggestions (Phase 3)
-  return delay({ frequent: FREQUENT_PICKUP_PLACES, recent: RECENT_PLACE_KEYWORDS })
+  if (!q) return []
+  const res = await fetch(`/api/places/search?q=${encodeURIComponent(q)}`)
+  return parseJsonResponse<Place[]>(res)
 }

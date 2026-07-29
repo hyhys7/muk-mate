@@ -33,6 +33,8 @@ export async function POST(request: Request) {
 
   const storeName = typeof body.storeName === 'string' ? body.storeName.trim() : ''
   const storeAddress = typeof body.storeAddress === 'string' ? body.storeAddress.trim() : ''
+  const storeLat = Number.isFinite(Number(body.storeLat)) ? Number(body.storeLat) : null
+  const storeLng = Number.isFinite(Number(body.storeLng)) ? Number(body.storeLng) : null
   const orderSummary = typeof body.orderSummary === 'string' ? body.orderSummary.trim() : ''
   const zoneCode = typeof body.zoneCode === 'string' ? body.zoneCode : ''
   const targetType = body.targetType === 'AMOUNT' ? 'AMOUNT' : body.targetType === 'HEADCOUNT' ? 'HEADCOUNT' : null
@@ -42,6 +44,8 @@ export async function POST(request: Request) {
   const pickupMinutes = Number(body.pickupMinutes)
   const pickupName = typeof body.pickupName === 'string' ? body.pickupName.trim() : ''
   const pickupAddress = typeof body.pickupAddress === 'string' ? body.pickupAddress.trim() : ''
+  const pickupLat = Number.isFinite(Number(body.pickupLat)) ? Number(body.pickupLat) : null
+  const pickupLng = Number.isFinite(Number(body.pickupLng)) ? Number(body.pickupLng) : null
   const pickupNote = typeof body.pickupNote === 'string' ? body.pickupNote.trim() : ''
   const extraNote = typeof body.extraNote === 'string' ? body.extraNote.trim() : ''
 
@@ -92,6 +96,8 @@ export async function POST(request: Request) {
       zoneCode,
       storeName,
       storeAddress: storeAddress || null,
+      storeLat: storeLat !== null ? String(storeLat) : null,
+      storeLng: storeLng !== null ? String(storeLng) : null,
       orderSummary,
       targetType,
       targetValue: Math.round(targetValue),
@@ -100,6 +106,8 @@ export async function POST(request: Request) {
       pickupAt,
       pickupName,
       pickupAddress: pickupAddress || null,
+      pickupLat: pickupLat !== null ? String(pickupLat) : null,
+      pickupLng: pickupLng !== null ? String(pickupLng) : null,
       pickupNote: pickupNote || null,
       extraNote: extraNote || null,
     })
