@@ -14,7 +14,7 @@
 
 | Phase | 내용 | 상태 |
 |---|---|---|
-| 0 | 인프라 기반 (DB/배포/인증 골격) | ☐ 시작 전 |
+| 0 | 인프라 기반 (DB/배포/인증 골격) | ▶ 진행 중 — 코드 골격 완료, 계정 연결(Neon/Vercel/네이버) 대기 |
 | 1 | 계정 (AUTH) | ☐ 시작 전 (UI만 존재, mock) |
 | 2 | 공동주문 핵심 (ORDER) | ☐ 시작 전 (목록/상세/작성 UI 존재, mock) |
 | 3 | 네이버 장소 검색 (ORDER-09) | ☐ 시작 전 |
@@ -31,17 +31,19 @@
 
 목표: 이후 모든 Phase가 올라설 바닥. `mukmate-db-schema` 스킬 참고.
 
-- [ ] Neon 프로젝트 생성, **pooled connection string** 확보 (직접 연결 문자열 금지 — 배포 후 커넥션 고갈 500 에러 원인)
-- [ ] `drizzle-orm` + `@neondatabase/serverless` (또는 선택한 드라이버) 설치
-- [ ] `lib/db/schema.ts` 작성 — `mukmate-db-schema` 스킬의 DDL을 Drizzle 스키마로 변환 (zones/users/pots/participations/chat_rooms/messages, ENUM 5종)
-- [ ] 마이그레이션 생성 및 Neon에 적용, `zones` 4개 행 시드 (구정문/신정문/기숙사/사대부고 — `lib/constants.ts`의 기존 코드와 정확히 일치시킬 것)
-- [ ] `chat_rooms`에 커뮤니티 고정방 2개 시드 (§17-2: "오늘 뭐 먹지 · 맛집 추천", "같이 먹어요 · 음식 여행")
-- [ ] Vercel 프로젝트 연결 + 첫 배포 (기능 없어도 배포 파이프라인부터 뚫기 — PRD §15 경고: "마지막 날 첫 배포 시도하면 하루 날아간다")
-- [ ] Vercel 환경변수 등록: `DATABASE_URL`(pooled), `AUTH_SECRET`, `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` (실제 키는 Phase 3에서 발급)
-- [ ] `.env.local`에 로컬 개발용 값 세팅 (`.gitignore`에 포함되어 있는지 확인)
-- [ ] Auth.js(NextAuth) 설치, Credentials Provider 골격 작성 (bcrypt는 Phase 1에서 실제 사용) — `mukmate-auth` 스킬 참고, Clerk/Descope/Auth0 등 외부 제공자 사용하지 않음
+- [x] `drizzle-orm` + `@neondatabase/serverless` + `next-auth@beta` + `bcryptjs` + `drizzle-kit`/`tsx`/`dotenv` 설치
+- [x] `lib/db/schema.ts` 작성 — `mukmate-db-schema` 스킬의 DDL을 Drizzle 스키마로 변환 완료 (zones/users/pots/participations/chat_rooms/messages, ENUM 5종). `npx drizzle-kit generate`로 `drizzle/0000_watery_madripoor.sql` 생성 확인, PRD §11-2 DDL과 컬럼 단위로 일치
+- [x] `lib/db/index.ts` — `@neondatabase/serverless` HTTP 드라이버 기반 클라이언트 (PRD §10-3② "pooled string 또는 HTTP 드라이버" 중 HTTP 드라이버 경로 채택 → pooled 여부 자체가 무의미해짐). **지연 초기화(lazy)로 구현** — `DATABASE_URL`이 없어도 `next build`/`next dev`는 정상 동작하고, 실제 쿼리 실행 시점에만 에러가 나도록 함 (처음엔 모듈 로드 시점에 즉시 throw하게 짰다가 `next build`가 깨지는 걸 확인하고 수정함)
+- [x] Auth.js(NextAuth) 설치, Credentials Provider 골격 작성 (`auth.ts`, `app/api/auth/[...nextauth]/route.ts`, `types/next-auth.d.ts`) — bcrypt 비교 로직까지 포함되어 있으나 실제 로그인 페이지 연동은 Phase 1에서 진행. `mukmate-auth` 스킬 기준대로 Clerk/Descope/Auth0 등 외부 제공자 사용 안 함
+- [x] `scripts/seed.ts` 작성 — zones 4행 + 커뮤니티 고정방 2개 시드 스크립트 (`npm run db:seed`), 아직 실행은 안 함 (DB 없음)
+- [x] `.env.example` 작성 (`DATABASE_URL`, `AUTH_SECRET`, `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`)
+- [x] `npx tsc --noEmit` + `npm run build` 통과 확인 (DB/외부 키 없는 현재 상태 기준)
+- [ ] **[사용자 액션 필요]** Neon 프로젝트 생성 + connection string을 `.env.local`에 설정
+- [ ] **[사용자 액션 필요]** `zones`/`chat_rooms` 시드 실행: `npm run db:seed`
+- [ ] **[사용자 액션 필요]** Vercel CLI 로그인(`vercel login`) + 프로젝트 연결 + 첫 배포 (PRD §15 경고: "마지막 날 첫 배포 시도하면 하루 날아간다" — 미루지 말 것)
+- [ ] **[사용자 액션 필요]** Vercel 환경변수 등록: `DATABASE_URL`, `AUTH_SECRET`(`npx auth secret`으로 생성 가능), `NAVER_CLIENT_ID`/`SECRET`(Phase 3에서 발급 후)
 
-**완료 기준**: 빈 페이지라도 Vercel 프로덕션 URL에서 로드되고, 로컬에서 Neon DB에 쿼리 1건이 왕복 확인된다.
+**완료 기준**: 빈 페이지라도 Vercel 프로덕션 URL에서 로드되고, 로컬에서 Neon DB에 쿼리 1건이 왕복 확인된다. → **코드 골격은 완료, 계정 연결 3건(Neon/Vercel/네이버는 Phase 3에서)이 남아 있어 Phase 0은 아직 미완료.**
 
 ---
 
