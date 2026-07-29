@@ -14,7 +14,7 @@
 
 | Phase | 내용 | 상태 |
 |---|---|---|
-| 0 | 인프라 기반 (DB/배포/인증 골격) | ▶ 진행 중 — 코드 골격 + Vercel 연결 완료, Neon 연결만 남음 |
+| 0 | 인프라 기반 (DB/배포/인증 골격) | ✅ 완료 |
 | 1 | 계정 (AUTH) | ☐ 시작 전 (UI만 존재, mock) |
 | 2 | 공동주문 핵심 (ORDER) | ☐ 시작 전 (목록/상세/작성 UI 존재, mock) |
 | 3 | 네이버 장소 검색 (ORDER-09) | ☐ 시작 전 |
@@ -31,7 +31,7 @@
 
 목표: 이후 모든 Phase가 올라설 바닥. `mukmate-db-schema` 스킬 참고.
 
-- [x] `drizzle-orm` + `@neondatabase/serverless` + `next-auth@beta` + `bcryptjs` + `drizzle-kit`/`tsx`/`dotenv` 설치
+- [x] `drizzle-orm` + `@neondatabase/serverless` + `next-auth@beta` + `bcryptjs` + `drizzle-kit`/`tsx`/`dotenv-cli` 설치
 - [x] `lib/db/schema.ts` 작성 — `mukmate-db-schema` 스킬의 DDL을 Drizzle 스키마로 변환 완료 (zones/users/pots/participations/chat_rooms/messages, ENUM 5종). `npx drizzle-kit generate`로 `drizzle/0000_watery_madripoor.sql` 생성 확인, PRD §11-2 DDL과 컬럼 단위로 일치
 - [x] `lib/db/index.ts` — `@neondatabase/serverless` HTTP 드라이버 기반 클라이언트 (PRD §10-3② "pooled string 또는 HTTP 드라이버" 중 HTTP 드라이버 경로 채택 → pooled 여부 자체가 무의미해짐). **지연 초기화(lazy)로 구현** — `DATABASE_URL`이 없어도 `next build`/`next dev`는 정상 동작하고, 실제 쿼리 실행 시점에만 에러가 나도록 함 (처음엔 모듈 로드 시점에 즉시 throw하게 짰다가 `next build`가 깨지는 걸 확인하고 수정함)
 - [x] Auth.js(NextAuth) 설치, Credentials Provider 골격 작성 (`auth.ts`, `app/api/auth/[...nextauth]/route.ts`, `types/next-auth.d.ts`) — bcrypt 비교 로직까지 포함되어 있으나 실제 로그인 페이지 연동은 Phase 1에서 진행. `mukmate-auth` 스킬 기준대로 Clerk/Descope/Auth0 등 외부 제공자 사용 안 함
@@ -42,11 +42,14 @@
 - [x] Vercel 프로젝트 연결 — 대시보드에서 GitHub 리포(`hyhys7/muk-mate`) 임포트로 `muk-mate` 프로젝트 생성. CLI 로그인(`vercel login`) 후 `vercel link --yes --project muk-mate`로 로컬 디렉토리 연결 완료 (`.vercel/project.json` 생성, `.gitignore`에 이미 포함되어 있어 커밋 안 됨)
 - [x] **버그 발견 및 수정**: 실제 배포 2건이 전부 Error였음(`vercel ls`로 확인, 라이브 URL 404) — 원인은 리포에 남아있던 stale `pnpm-lock.yaml`을 Vercel이 감지해 pnpm으로 설치를 시도하면서 `ERR_PNPM_OUTDATED_LOCKFILE` 발생(npm으로 계속 패키지를 추가해왔기 때문에 pnpm-lock.yaml이 package.json과 불일치). pnpm은 애초에 로컬에 설치도 안 되어 있었고 npm이 실제 사용 중인 패키지 매니저였음 → `pnpm-lock.yaml` 삭제로 해결
 - [x] 수정 후 `vercel deploy --prod`로 재배포, `READY` 상태 확인 — production alias `https://muk-mate.vercel.app`, `/` → 307(→`/pots` 리다이렉트), `/pots`·`/login` → 200 확인
-- [ ] **[사용자 액션 필요]** Neon 프로젝트 생성 + connection string을 `.env.local`에 설정
-- [ ] **[사용자 액션 필요]** `zones`/`chat_rooms` 시드 실행: `npm run db:seed`
-- [ ] **[사용자 액션 필요]** Vercel 환경변수 등록: `DATABASE_URL`, `AUTH_SECRET`(`npx auth secret`으로 생성 가능) — `vercel env add`로 CLI에서 바로 추가 가능. `NAVER_CLIENT_ID`/`SECRET`은 Phase 3에서 발급 후 등록
+- [x] Neon Postgres 프로비저닝 — Neon 계정 별도 가입 없이 **Vercel 마켓플레이스 연동**으로 처리 (`vercel integration add neon --plan free_v3 -m region=iad1 -m auth=false`). 요금제 **`free_v3`(무료 티어)** 명시적으로 선택, 리전은 Vercel 함수 실행 리전(iad1, 배포 로그 기준)과 맞춤, Neon 자체 Auth 기능은 비활성화(우리는 Auth.js Credentials만 사용). `DATABASE_URL` 등 16개 변수가 Production/Preview/Development 전 환경에 자동 등록되고 `.env.local`에도 자동 반영됨
+- [x] **버그 발견 및 수정 (2)**: vercel-storage 스킬 경고에 따라 `lib/db/index.ts`의 JS `Proxy` 기반 지연 초기화를 일반 `getDb()` 함수로 교체 — Proxy로 감싸면 메서드 호출 시 `this`가 실제 drizzle 인스턴스가 아니라 빈 Proxy 타겟에 바인딩되어 Auth.js 연동에서 조용히 멈추는 사례가 보고되어 있음. `auth.ts`/`scripts/seed.ts`도 `getDb()` 호출로 갱신
+- [x] `npm run db:push`로 Neon에 스키마 적용 완료 (6개 테이블 생성 확인), `npm run db:seed`로 zones 4건 + community chat_rooms 2건 시드 완료 (직접 쿼리로 값까지 확인)
+- [x] `drizzle-kit`/`tsx`는 `.env.local`을 자동으로 안 읽으므로 `dotenv-cli` 도입, `db:push`/`db:studio`/`db:seed` 스크립트가 `.env.local`을 명시적으로 로드하도록 수정 (기존 `dotenv` 단독 패키지는 더 이상 안 쓰여서 제거)
+- [x] `AUTH_SECRET` 생성(Node `crypto.randomBytes`) 후 Vercel Production/Preview/Development 전체에 등록, `.env.local`에도 반영
+- [x] `vercel deploy --prod` 재배포 후 `/api/auth/session`(→ `null`, 정상) · `/api/auth/providers`(→ credentials provider 정상 노출) 라이브 확인 — Auth.js가 실제 Neon DB와 연결된 상태로 프로덕션에서 정상 동작
 
-**완료 기준**: 빈 페이지라도 Vercel 프로덕션 URL에서 로드되고, 로컬에서 Neon DB에 쿼리 1건이 왕복 확인된다. → **Vercel 연결까지 완료, Neon connection string만 남아 있으면 Phase 0 완료.**
+**완료 기준**: 빈 페이지라도 Vercel 프로덕션 URL에서 로드되고, 로컬에서 Neon DB에 쿼리 1건이 왕복 확인된다. → **Phase 0 완료.** (남은 건 Phase 3에서 발급할 네이버 API 키뿐)
 
 ---
 

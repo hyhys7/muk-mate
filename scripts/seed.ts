@@ -1,8 +1,6 @@
 // 초기 시드 — 활동 지역 4권역(PRD §17-1) + 커뮤니티 고정 채팅방 2개(§17-2).
-// 실행: npm run db:seed  (DATABASE_URL이 .env.local에 있어야 함)
-import 'dotenv/config'
-
-import { db } from '../lib/db'
+// 실행: npm run db:seed  (dotenv-cli가 .env.local을 미리 로드해서 실행함 — package.json 참고)
+import { getDb } from '../lib/db'
 import { chatRooms, zones } from '../lib/db/schema'
 
 const ZONES = [
@@ -18,6 +16,7 @@ const COMMUNITY_ROOMS = [
 ]
 
 async function main() {
+  const db = getDb()
   await db.insert(zones).values([...ZONES]).onConflictDoNothing()
   await db.insert(chatRooms).values(COMMUNITY_ROOMS).onConflictDoNothing()
   console.log('시드 완료: zones 4건 + community chat_rooms 2건')

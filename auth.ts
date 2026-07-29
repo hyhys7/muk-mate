@@ -7,7 +7,7 @@ import Credentials from 'next-auth/providers/credentials'
 
 import bcrypt from 'bcryptjs'
 
-import { db } from '@/lib/db'
+import { getDb } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -26,7 +26,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = typeof credentials?.password === 'string' ? credentials.password : undefined
         if (!loginId || !password) return null
 
-        const [user] = await db.select().from(users).where(eq(users.loginId, loginId)).limit(1)
+        const [user] = await getDb().select().from(users).where(eq(users.loginId, loginId)).limit(1)
         if (!user) return null
 
         const isValid = await bcrypt.compare(password, user.passwordHash)
