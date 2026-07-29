@@ -27,13 +27,13 @@ No native app · no in-app payment/remittance/escrow/auto-settlement (the split-
 ## Completion checklist (§13-1, §13-2) — use as acceptance criteria for "is this done"
 
 - Two independent accounts sign up/log in; duplicate login_id rejected
-- A pot can be created with a Naver-search-selected store + pickup location
+- A pot can be created with a Kakao-search-selected store + pickup location
 - Another account can find it, apply with a message, get approved/rejected by the host
 - **A rejected/non-applicant account cannot reach the order chat even via direct URL**
 - Host can close recruitment and mark the order complete
 - Both accounts see their created/joined pots and statuses on 마이페이지, and can edit nickname/zone/password
 - Community fixed-room chat works for any logged-in user
 - Everything survives a refresh and a redeploy (Neon-backed), and works on the **Vercel production URL**, not just localhost
-- Naver Client Secret never appears in the browser devtools network tab
+- Kakao REST API key never appears in the browser devtools network tab
 
 Don't accept "it's done" on a single happy-path demo — check against this list.

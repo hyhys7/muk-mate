@@ -1,19 +1,23 @@
 # 먹메이트 (MukMate)
 
-전북대 덕진구 생활권 학생들을 위한 공동주문 매칭 모바일 웹 서비스. 전체 요구사항·근거는 **`docs/PRD.md` (v2.0)가 단일 소스**다 — 이 파일은 방향을 잡기 위한 요약이며, 세부 규칙은 아래 스킬 문서를 따른다.
+전북대 덕진구 생활권 학생들을 위한 공동주문 매칭 모바일 웹 서비스. 전체 요구사항·근거는 **`docs/PRD.md` (v2.1)가 단일 소스**다 — 이 파일은 방향을 잡기 위한 요약이며, 세부 규칙은 아래 스킬 문서를 따른다.
 
 ## 지금 상태
 
-`app/`, `components/`, `lib/`는 **프론트엔드 스캐폴드 + mock 데이터** 단계다. 아직 DB(Neon)·인증·네이버 API 연동이 없다.
+Phase 0~2(`docs/SPRINT_PLAN.md`) 완료 — DB(Neon)·인증·공동주문 핵심은 실제로 동작한다. Phase 3(장소 검색)부터가 남았다.
 
-- `lib/api.ts` — 유일한 데이터 접근 지점. 컴포넌트는 이 함수들만 호출하고 `lib/mock-data.ts`를 직접 import하지 않는다. 실제 백엔드 연동 시 **각 함수의 본문만 실제 fetch/서버 호출로 교체**하면 되도록 이미 설계되어 있다 (각 함수 위 `// TODO: replace with real API call — ...` 주석이 목표 엔드포인트를 명시함).
-- `lib/types.ts` — PRD §11-2 스키마와 1:1 대응하는 도메인 타입. 컬럼을 추가/변경하면 여기부터 갱신한다.
+- **완료**: Neon Postgres 연결(Vercel 마켓플레이스 프로비저닝, 무료 티어), Auth.js Credentials 회원가입/로그인(`auth.ts`), 공동주문 목록/상세/작성/참여신청/승인거절/상태전이, 신규 화면 #7(참여 신청자 관리)
+- **남은 것**: 장소 검색(카카오 로컬 API, Phase 3), 채팅(Phase 4), 마이페이지·정보수정(Phase 5), 모집글 수정 화면(보류 중), P1 기능(Phase 6)
+- `lib/api.ts` — **클라이언트(브라우저) 전용** fetch() 함수만 있다. DB/인증을 직접 import하지 않는다 — 그러면 서버 전용 코드가 브라우저 번들에 끼어들어가 빌드가 깨진다.
+- `lib/server-data.ts` — **서버 컴포넌트 전용** DB 조회 함수(`server-only` 패키지로 가드됨). 서버 컴포넌트(페이지)는 이 파일을, 클라이언트 컴포넌트는 `lib/api.ts`를 쓴다. 이 경계를 헷갈리면 안 된다.
+- `lib/db/schema.ts` — 실제 Neon 스키마(Drizzle). PRD §11-2와 1:1 대응. 컬럼을 바꾸면 `drizzle-kit generate` → `db:push`까지 해야 반영된다.
+- `lib/types.ts` — 클라이언트(mock 시절부터 있던) 도메인 타입. `lib/server-data.ts`가 DB 로우를 이 타입 모양으로 매핑해서 돌려준다.
 - `lib/constants.ts` — 활동 지역(zone) 4권역이 이미 PRD §17-1의 제안대로 확정 적용됨: `GUJEONGMUN`(구정문) · `SINJEONGMUN`(신정문) · `DORM`(기숙사) · `SADAEBUGO`(사대부고 주변). 이 목록을 임의로 바꾸지 말 것 — 바꾸려면 PRD §17-1 결정을 먼저 갱신한다.
-- 라우팅은 App Router 그룹으로 분리: `app/(auth)/` (로그인/회원가입/온보딩), `app/(main)/` (공동주문/채팅/마이 + 하단 내비 레이아웃).
+- 라우팅은 App Router 그룹으로 분리: `app/(auth)/` (로그인/회원가입/온보딩), `app/(main)/` (공동주문/채팅/마이 + 하단 내비 레이아웃). `(main)` 전체는 로그인 세션이 없으면 `/login`으로 리다이렉트된다.
 
 ## 기술 스택 (PRD §10-1, 확정)
 
-Next.js (App Router) · Neon DB(PostgreSQL, 반드시 pooled connection) · Vercel 배포 · Drizzle ORM 권장 · Auth.js(NextAuth) Credentials + bcrypt · 네이버 지역 검색 API·NAVER Maps API (서버 프록시 경유) · Tailwind CSS · shadcn/ui.
+Next.js (App Router) · Neon DB(PostgreSQL, HTTP 드라이버) · Vercel 배포 · Drizzle ORM · Auth.js(NextAuth) Credentials + bcrypt · 카카오 로컬 API (서버 프록시 경유) · Tailwind CSS · shadcn/ui.
 
 ## 절대 어기면 안 되는 제약 3가지 (PRD §10-3)
 
@@ -21,7 +25,7 @@ Next.js (App Router) · Neon DB(PostgreSQL, 반드시 pooled connection) · Verc
 2. **DB 커넥션은 반드시 pooled.** 직접 연결 문자열은 로컬에선 되다가 배포 후 커넥션 고갈로 500 에러가 난다.
 3. **마감 시각 자동 처리는 크론 없이, 조회 시점 판정으로.** 별도 스케줄러를 만들지 않는다.
 
-그리고 항상: 네이버 API는 서버(Route Handler)에서만 호출 — 클라이언트가 직접 부르면 REST 키가 노출된다. 로그인은 Auth.js Credentials + bcrypt만 사용 — Clerk/Descope/Auth0/OAuth/SMS 인증은 이 프로젝트의 명시적 비목표다.
+그리고 항상: 카카오 API는 서버(Route Handler)에서만 호출 — 클라이언트가 직접 부르면 REST API 키가 노출된다. 로그인은 Auth.js Credentials + bcrypt만 사용 — Clerk/Descope/Auth0/OAuth/SMS 인증은 이 프로젝트의 명시적 비목표다.
 
 ## 의사결정 우선순위 (PRD §18) — 애매하면 이 순서로 판단
 
@@ -33,7 +37,7 @@ Next.js (App Router) · Neon DB(PostgreSQL, 반드시 pooled connection) · Verc
 
 ## 개발 시 참고할 스킬/에이전트
 
-`.claude/skills/`에 PRD 근거를 담은 참조 스킬 8개, `.claude/agents/`에 위임용 서브에이전트 4개가 이미 설정되어 있다 (DB 스키마, API 계약, 인증, 네이버 연동, 공동주문 상태전이, 채팅 폴링, 모바일 UI, 스코프 가드). 관련 작업을 할 때 해당 스킬이 자동으로 컨텍스트에 잡히며, 더 깊은 리뷰가 필요하면 동일 주제의 에이전트에 위임할 수 있다. 세부 규칙을 다시 찾아 헤매지 말고 이 스킬들을 먼저 확인할 것.
+`.claude/skills/`에 PRD 근거를 담은 참조 스킬 8개, `.claude/agents/`에 위임용 서브에이전트 4개가 이미 설정되어 있다 (DB 스키마, API 계약, 인증, 카카오 장소 검색 연동, 공동주문 상태전이, 채팅 폴링, 모바일 UI, 스코프 가드). 관련 작업을 할 때 해당 스킬이 자동으로 컨텍스트에 잡히며, 더 깊은 리뷰가 필요하면 동일 주제의 에이전트에 위임할 수 있다. 세부 규칙을 다시 찾아 헤매지 말고 이 스킬들을 먼저 확인할 것.
 
 Vercel 공식 플러그인(`vercel-plugin`, 프로젝트 `.claude/settings.json`에 등록됨)도 Next.js/배포/env/shadcn 관련 범용 스킬을 제공한다. 단, 그 플러그인의 `auth` 스킬(Clerk 등 외부 인증 제공자)은 이 프로젝트에는 적용하지 않는다 — `mukmate-auth` 스킬을 따른다.
 

@@ -20,7 +20,7 @@ Reference API surface for MukMate. Source of truth: `docs/PRD.md` §11-3.
 | PATCH | `/api/pots/:id` | Edit pot / change status | **Host only** |
 | POST | `/api/pots/:id/applications` | Apply to join (with message) | Logged in |
 | PATCH | `/api/applications/:id` | Approve / reject | **Host only** |
-| GET | `/api/places/search?q=` | Naver Local Search/Maps proxy | Logged in |
+| GET | `/api/places/search?q=` | Kakao Local API keyword-search proxy | Logged in |
 | GET | `/api/rooms` | My chat rooms + fixed community rooms | Logged in |
 | GET | `/api/rooms/:id/messages?after=` | Incremental message fetch (polling) | **Room participant only** |
 | POST | `/api/rooms/:id/messages` | Send message | **Room participant only** |
@@ -33,4 +33,4 @@ Every handler marked **host only** or **room participant only** above must re-ve
 
 ## Data flow rule (§10-2)
 
-All DB reads/writes happen in Route Handlers / Server Actions — never in a Client Component. Naver API calls happen server-side only, proxied through `/api/places/search`; the client never calls `openapi.naver.com` directly (that would leak the REST key).
+All DB reads/writes happen in Route Handlers / Server Actions — never in a Client Component. Kakao API calls happen server-side only, proxied through `/api/places/search`; the client never calls `dapi.kakao.com` directly (that would leak the REST API key).

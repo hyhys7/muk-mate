@@ -39,7 +39,7 @@ If a request falls in this list, say so explicitly and ask whether it's really n
 ## Completion checklist to hold work against (§13-1, §13-2 — use as acceptance criteria)
 
 - Two independent accounts (A, B) can sign up and log in; duplicate login_id is rejected
-- A can create a pot with a Naver-search-selected store and pickup location
+- A can create a pot with a Kakao-search-selected store and pickup location
 - B can find it and apply with a participation message
 - A can approve/reject B; only approved B can enter and post in the order chat
 - **A rejected/non-applicant account cannot reach the chat room even via direct URL** — this is a specifically named, testable requirement, not a nice-to-have
@@ -47,6 +47,6 @@ If a request falls in this list, say so explicitly and ask whether it's really n
 - Both can see their created/joined pots and statuses on their 마이페이지, and edit nickname/활동지역/password
 - Community fixed-room chat works for any logged-in user
 - All of the above still holds after a refresh and after a redeploy (data persists in Neon), and works on the **Vercel production URL**, not just localhost
-- Naver Client Secret never appears in browser devtools network tab
+- Kakao REST API key never appears in browser devtools network tab
 
 When asked "is this done," check against this list rather than accepting a demo that only exercises the happy path once.

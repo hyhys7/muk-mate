@@ -92,7 +92,7 @@ function mapPotRow(row: PotRow, agg: { count: number; amount: number }): Pot {
     extraNote: row.extraNote ?? '',
     // §10-3③: 크론 없이 조회 시점에 마감 여부를 판정한다.
     status: computeEffectiveStatus(row.status, row.deadlineAt),
-    // Naver 지역 검색 결과로 좌표까지 채워진 경우에만 "위치확인" — Phase 3 전까지는 항상 false
+    // 카카오 로컬 API 검색 결과로 좌표까지 채워진 경우에만 "위치확인" — Phase 3 전까지는 항상 false
     isLocationVerified: Boolean(row.storeLat && row.storeLng),
     // ORDER-10(P1, Phase 6)에서 클라이언트 Geolocation으로 채울 때까지는 표시하지 않음
     distanceMeters: 0,

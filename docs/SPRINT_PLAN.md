@@ -1,6 +1,6 @@
 # 먹메이트 개발 계획 (Sprint Plan)
 
-기준 문서: `docs/PRD.md` (v2.0), `CLAUDE.md`. 요구사항 ID(`AUTH-xx`, `ORDER-xx`, `CHAT-xx`, `MY-xx`)와 완료 기준(§13)은 전부 PRD 원문 기준이다.
+기준 문서: `docs/PRD.md` (v2.1), `CLAUDE.md`. 요구사항 ID(`AUTH-xx`, `ORDER-xx`, `CHAT-xx`, `MY-xx`)와 완료 기준(§13)은 전부 PRD 원문 기준이다.
 
 ## 이 문서 사용법
 
@@ -17,7 +17,7 @@
 | 0 | 인프라 기반 (DB/배포/인증 골격) | ✅ 완료 |
 | 1 | 계정 (AUTH) | ✅ 완료 (로그아웃 버튼 UI는 Phase 5로 이관) |
 | 2 | 공동주문 핵심 (ORDER) | ✅ 완료 (모집글 수정 화면만 별도 보류) |
-| 3 | 네이버 장소 검색 (ORDER-09) | ☐ 시작 전 |
+| 3 | 카카오 장소 검색 (ORDER-09) | ☐ 시작 전 |
 | 4 | 채팅 (CHAT) | ☐ 시작 전 (화면 stub만 존재) |
 | 5 | 마이페이지 (MY) | ☐ 시작 전 (화면 stub만 존재) |
 | 6 | P1 선택 기능 | ☐ 시작 전 |
@@ -36,7 +36,7 @@
 - [x] `lib/db/index.ts` — `@neondatabase/serverless` HTTP 드라이버 기반 클라이언트 (PRD §10-3② "pooled string 또는 HTTP 드라이버" 중 HTTP 드라이버 경로 채택 → pooled 여부 자체가 무의미해짐). **지연 초기화(lazy)로 구현** — `DATABASE_URL`이 없어도 `next build`/`next dev`는 정상 동작하고, 실제 쿼리 실행 시점에만 에러가 나도록 함 (처음엔 모듈 로드 시점에 즉시 throw하게 짰다가 `next build`가 깨지는 걸 확인하고 수정함)
 - [x] Auth.js(NextAuth) 설치, Credentials Provider 골격 작성 (`auth.ts`, `app/api/auth/[...nextauth]/route.ts`, `types/next-auth.d.ts`) — bcrypt 비교 로직까지 포함되어 있으나 실제 로그인 페이지 연동은 Phase 1에서 진행. `mukmate-auth` 스킬 기준대로 Clerk/Descope/Auth0 등 외부 제공자 사용 안 함
 - [x] `scripts/seed.ts` 작성 — zones 4행 + 커뮤니티 고정방 2개 시드 스크립트 (`npm run db:seed`), 아직 실행은 안 함 (DB 없음)
-- [x] `.env.example` 작성 (`DATABASE_URL`, `AUTH_SECRET`, `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`)
+- [x] `.env.example` 작성 (`DATABASE_URL`, `AUTH_SECRET`, `KAKAO_REST_API_KEY` — 원래 네이버 기준으로 작성했다가 이후 카카오로 전환, §Phase 3 참고)
 - [x] `npx tsc --noEmit` + `npm run build` 통과 확인 (DB/외부 키 없는 현재 상태 기준)
 - [x] Vercel CLI 설치 (devDependency, `npx vercel` 사용) + `vercel:login`/`link`/`env:pull`/`deploy`/`deploy:prod` npm 스크립트 추가
 - [x] Vercel 프로젝트 연결 — 대시보드에서 GitHub 리포(`hyhys7/muk-mate`) 임포트로 `muk-mate` 프로젝트 생성. CLI 로그인(`vercel login`) 후 `vercel link --yes --project muk-mate`로 로컬 디렉토리 연결 완료 (`.vercel/project.json` 생성, `.gitignore`에 이미 포함되어 있어 커밋 안 됨)
@@ -49,7 +49,7 @@
 - [x] `AUTH_SECRET` 생성(Node `crypto.randomBytes`) 후 Vercel Production/Preview/Development 전체에 등록, `.env.local`에도 반영
 - [x] `vercel deploy --prod` 재배포 후 `/api/auth/session`(→ `null`, 정상) · `/api/auth/providers`(→ credentials provider 정상 노출) 라이브 확인 — Auth.js가 실제 Neon DB와 연결된 상태로 프로덕션에서 정상 동작
 
-**완료 기준**: 빈 페이지라도 Vercel 프로덕션 URL에서 로드되고, 로컬에서 Neon DB에 쿼리 1건이 왕복 확인된다. → **Phase 0 완료.** (남은 건 Phase 3에서 발급할 네이버 API 키뿐)
+**완료 기준**: 빈 페이지라도 Vercel 프로덕션 URL에서 로드되고, 로컬에서 Neon DB에 쿼리 1건이 왕복 확인된다. → **Phase 0 완료.** (남은 건 Phase 3에서 발급할 카카오 API 키뿐)
 
 ---
 
@@ -95,18 +95,19 @@
 
 ---
 
-## Phase 3 — 네이버 장소 검색 (ORDER-09, 화면 #6)
+## Phase 3 — 카카오 장소 검색 (ORDER-09, 화면 #6)
 
-목표: 자유 텍스트 입력을 실제 장소 검색으로 교체. `mukmate-naver-places` 스킬 참고.
+목표: 자유 텍스트 입력을 실제 장소 검색으로 교체. `mukmate-kakao-places` 스킬 참고.
 
-- [ ] 네이버 개발자센터에서 애플리케이션 등록, Client ID/Secret 발급 (사람이 직접 처리 — API 키 발급은 대행 불가)
-- [ ] `app/api/places/search` Route Handler — 서버에서만 네이버 API 호출, 필요한 필드(이름/주소/위경도)만 반환
+- [ ] **[사용자 액션 필요]** 카카오 디벨로퍼스에서 애플리케이션 등록 후 **REST API 키** 발급 (사람이 직접 처리 — API 키 발급은 대행 불가). 네이버와 달리 Client ID/Secret 쌍이 아니라 **키 1개**만 발급됨
+- [ ] `app/api/places/search` Route Handler — 서버에서만 카카오 로컬 API(`GET https://dapi.kakao.com/v2/local/search/keyword.json`) 호출, `Authorization: KakaoAK {REST_API_KEY}` 헤더 사용, 필요한 필드(장소명/주소/위경도)만 클라이언트에 반환
 - [ ] **신규 화면 #6 — 장소·주소 검색** 모달/페이지 제작 (모달 권장, PRD §6-2)
 - [ ] `pot-create-form.tsx`의 가게명/수령장소 자유 텍스트 입력을 위 검색 모달 연동으로 교체 (현재는 프리셋 칩 + 자유 입력만 있음)
-- [ ] 검색 결과 선택 시 `store_lat/lng`, `pickup_lat/lng` 등 좌표까지 함께 저장되는지 확인
+- [ ] 검색 결과 선택 시 `store_lat/lng`, `pickup_lat/lng` 등 좌표까지 함께 저장되는지 확인 (카카오 로컬 API는 `x`=경도, `y`=위도로 응답하니 저장 시 헷갈리지 않게 주의)
 - [ ] 수령 장소는 검색 결과 + 직접 설명(`pickup_note`) 동시 입력 가능하도록 유지
+- [ ] `.env.local`/Vercel 환경변수에 `KAKAO_REST_API_KEY` 등록 (`.env.example`에 이미 이름은 반영됨)
 
-**완료 기준**: 브라우저 devtools Network 탭에 네이버 Client Secret이 노출되지 않고, 검색 결과로 가게/수령 장소를 선택해 모집글에 등록할 수 있다.
+**완료 기준**: 브라우저 devtools Network 탭에 카카오 REST API 키가 노출되지 않고, 검색 결과로 가게/수령 장소를 선택해 모집글에 등록할 수 있다.
 
 ---
 
@@ -154,7 +155,7 @@
 
 - [ ] 서로 다른 기기·브라우저 2대에서 동시 접속 테스트
 - [ ] **로컬이 아닌 Vercel 프로덕션 URL**에서 §13-1 필수 시나리오 전체 재확인 (체크리스트 13개 항목 — `mukmate-mvp-scope-guard` 스킬에 요약본 있음, 원문은 PRD §13-1)
-- [ ] §13-2 품질 기준 전체 확인 (환경변수 정상 연결, 네이버 시크릿 미노출, 모바일 Safari/Chrome 레이아웃, 하단 내비 일관성, 권한 없는 접근 차단 등)
+- [ ] §13-2 품질 기준 전체 확인 (환경변수 정상 연결, 카카오 API 키 미노출, 모바일 Safari/Chrome 레이아웃, 하단 내비 일관성, 권한 없는 접근 차단 등)
 - [ ] 한 사용자가 메시지를 보내면 다른 사용자 화면에 새로고침 없이 나타나는지 최종 확인
 
 **완료 기준**: PRD §13 전체 체크 완료 = MVP 완료.
