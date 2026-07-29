@@ -129,3 +129,19 @@ export async function searchPlaces(keyword: string): Promise<Place[]> {
   const res = await fetch(`/api/places/search?q=${encodeURIComponent(q)}`)
   return parseJsonResponse<Place[]>(res)
 }
+
+/** 메시지/사용자 신고 등록 — POST /api/reports */
+export async function sendReport(input: {
+  reportedUserId: string
+  roomId?: string
+  messageId?: number
+  reason: string
+  detail?: string
+}): Promise<{ ok: boolean; reportId: string }> {
+  const res = await fetch('/api/reports', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return parseJsonResponse<{ ok: boolean; reportId: string }>(res)
+}

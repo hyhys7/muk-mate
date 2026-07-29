@@ -1,7 +1,8 @@
+import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db'
-import { messages } from '@/lib/db/schema'
+import { messages, users } from '@/lib/db/schema'
 import { getMessagesForRoom, getRoomForViewer, getSessionUserOrNull } from '@/lib/server-data'
 
 const CONTENT_MAX = 500
@@ -44,6 +45,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const db = getDb()
+
+  // CHAT-15: 계정이 일시 정지(SUSPENDED) 또는 비활성화(DISABLED)된 사용자는 메시지 전송 불가
+  const [userRow] = await db
+    .select({ accountStatus: users.accountStatus })
+    .from(users)
+    .where(eq(users.id, me.id))
+    .limit(1)
+
+  if (userRow?.accountStatus && userRow.accountStatus !== 'ACTIVE') {
+    return NextResponse.json(
+      { error: '계정이 일시 정지되거나 비활성화되어 메시지를 전송할 수 없습니다.' },
+      { status: 403 },
+    )
+  }
+
   const [created] = await db
     .insert(messages)
     .values({ roomId: id, senderId: me.id, type: 'TEXT', content })

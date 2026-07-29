@@ -3,6 +3,7 @@
 
 import { sql } from 'drizzle-orm'
 import {
+  bigint,
   bigserial,
   index,
   integer,
@@ -21,6 +22,18 @@ export const approvalEnum = pgEnum('approval', ['PENDING', 'APPROVED', 'REJECTED
 export const roomTypeEnum = pgEnum('room_type', ['ORDER', 'COMMUNITY'])
 export const messageTypeEnum = pgEnum('message_type', ['TEXT', 'SYSTEM'])
 export const targetTypeEnum = pgEnum('target_type', ['HEADCOUNT', 'AMOUNT'])
+export const accountStatusEnum = pgEnum('account_status', ['ACTIVE', 'SUSPENDED', 'DISABLED'])
+export const reportReasonEnum = pgEnum('report_reason', [
+  'HARASSMENT',
+  'SEXUAL_CONTENT',
+  'SPAM',
+  'FRAUD',
+  'NO_SHOW',
+  'PRIVACY',
+  'UNSAFE_MEETING',
+  'OTHER',
+])
+export const reportStatusEnum = pgEnum('report_status', ['PENDING', 'REVIEWING', 'RESOLVED', 'DISMISSED'])
 
 /** 활동 지역: 목록이 아직 미확정(PRD §17-1)이라 enum이 아니라 테이블로 분리 */
 export const zones = pgTable('zones', {
@@ -37,6 +50,7 @@ export const users = pgTable('users', {
   zoneCode: text('zone_code')
     .notNull()
     .references(() => zones.code), // PRD §5-3: 활동 지역은 회원가입 필수 정보
+  accountStatus: accountStatusEnum('account_status').notNull().default('ACTIVE'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -123,6 +137,33 @@ export const messages = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('idx_messages_room').on(table.roomId, table.id)],
+)
+
+export const reports = pgTable(
+  'reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    reporterId: uuid('reporter_id')
+      .notNull()
+      .references(() => users.id),
+    reportedUserId: uuid('reported_user_id')
+      .notNull()
+      .references(() => users.id),
+    roomId: uuid('room_id').references(() => chatRooms.id, { onDelete: 'set null' }),
+    messageId: bigint('message_id', { mode: 'number' }).references(() => messages.id, { onDelete: 'set null' }),
+    reason: reportReasonEnum('reason').notNull(),
+    detail: text('detail'),
+    messageContentSnapshot: text('message_content_snapshot'),
+    messageCreatedSnapshot: timestamp('message_created_snapshot', { withTimezone: true }),
+    status: reportStatusEnum('status').notNull().default('PENDING'),
+    adminNote: text('admin_note'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_reports_status_created').on(table.status, table.createdAt),
+    uniqueIndex('idx_reports_duplicate_message').on(table.reporterId, table.messageId),
+  ],
 )
 
 // re-export for callers that want a raw sql tag without importing drizzle-orm directly

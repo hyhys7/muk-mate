@@ -7,6 +7,26 @@ export type TargetType = 'HEADCOUNT' | 'AMOUNT'
 export type RoomType = 'ORDER' | 'COMMUNITY'
 export type MessageType = 'TEXT' | 'SYSTEM'
 
+export type AccountStatus = 'ACTIVE' | 'SUSPENDED' | 'DISABLED'
+export type ReportReason =
+  | 'HARASSMENT'
+  | 'SEXUAL_CONTENT'
+  | 'SPAM'
+  | 'FRAUD'
+  | 'NO_SHOW'
+  | 'PRIVACY'
+  | 'UNSAFE_MEETING'
+  | 'OTHER'
+export type ReportStatus = 'PENDING' | 'REVIEWING' | 'RESOLVED' | 'DISMISSED'
+
+export interface ReportInput {
+  reportedUserId: string
+  roomId?: string
+  messageId?: number
+  reason: ReportReason
+  detail?: string
+}
+
 /** 활동 지역 권역 코드 */
 export type ZoneCode = 'GUJEONGMUN' | 'SINJEONGMUN' | 'DORM' | 'SADAEBUGO'
 
