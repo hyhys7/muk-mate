@@ -14,7 +14,7 @@
 
 | Phase | 내용 | 상태 |
 |---|---|---|
-| 0 | 인프라 기반 (DB/배포/인증 골격) | ▶ 진행 중 — 코드 골격 완료, 계정 연결(Neon/Vercel/네이버) 대기 |
+| 0 | 인프라 기반 (DB/배포/인증 골격) | ▶ 진행 중 — 코드 골격 + Vercel 연결 완료, Neon 연결만 남음 |
 | 1 | 계정 (AUTH) | ☐ 시작 전 (UI만 존재, mock) |
 | 2 | 공동주문 핵심 (ORDER) | ☐ 시작 전 (목록/상세/작성 UI 존재, mock) |
 | 3 | 네이버 장소 검색 (ORDER-09) | ☐ 시작 전 |
@@ -38,12 +38,13 @@
 - [x] `scripts/seed.ts` 작성 — zones 4행 + 커뮤니티 고정방 2개 시드 스크립트 (`npm run db:seed`), 아직 실행은 안 함 (DB 없음)
 - [x] `.env.example` 작성 (`DATABASE_URL`, `AUTH_SECRET`, `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`)
 - [x] `npx tsc --noEmit` + `npm run build` 통과 확인 (DB/외부 키 없는 현재 상태 기준)
+- [x] Vercel CLI 설치 (devDependency, `npx vercel` 사용) + `vercel:login`/`link`/`env:pull`/`deploy`/`deploy:prod` npm 스크립트 추가
+- [x] Vercel 프로젝트 연결 — 대시보드에서 GitHub 리포(`hyhys7/muk-mate`) 임포트로 `muk-mate` 프로젝트 생성, 첫 배포 확인. CLI 로그인(`vercel login`) 후 `vercel link --yes --project muk-mate`로 로컬 디렉토리 연결 완료 (`.vercel/project.json` 생성, `.gitignore`에 이미 포함되어 있어 커밋 안 됨)
 - [ ] **[사용자 액션 필요]** Neon 프로젝트 생성 + connection string을 `.env.local`에 설정
 - [ ] **[사용자 액션 필요]** `zones`/`chat_rooms` 시드 실행: `npm run db:seed`
-- [ ] **[사용자 액션 필요]** Vercel CLI 로그인(`vercel login`) + 프로젝트 연결 + 첫 배포 (PRD §15 경고: "마지막 날 첫 배포 시도하면 하루 날아간다" — 미루지 말 것)
-- [ ] **[사용자 액션 필요]** Vercel 환경변수 등록: `DATABASE_URL`, `AUTH_SECRET`(`npx auth secret`으로 생성 가능), `NAVER_CLIENT_ID`/`SECRET`(Phase 3에서 발급 후)
+- [ ] **[사용자 액션 필요]** Vercel 환경변수 등록: `DATABASE_URL`, `AUTH_SECRET`(`npx auth secret`으로 생성 가능) — `vercel env add`로 CLI에서 바로 추가 가능. `NAVER_CLIENT_ID`/`SECRET`은 Phase 3에서 발급 후 등록
 
-**완료 기준**: 빈 페이지라도 Vercel 프로덕션 URL에서 로드되고, 로컬에서 Neon DB에 쿼리 1건이 왕복 확인된다. → **코드 골격은 완료, 계정 연결 3건(Neon/Vercel/네이버는 Phase 3에서)이 남아 있어 Phase 0은 아직 미완료.**
+**완료 기준**: 빈 페이지라도 Vercel 프로덕션 URL에서 로드되고, 로컬에서 Neon DB에 쿼리 1건이 왕복 확인된다. → **Vercel 연결까지 완료, Neon connection string만 남아 있으면 Phase 0 완료.**
 
 ---
 
