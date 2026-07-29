@@ -4,14 +4,8 @@
 // 직접 import하지 않는다 — 그러면 서버 전용 코드가 브라우저 번들에 끼어 들어가려다
 // 빌드가 깨진다. 서버 컴포넌트가 필요로 하는 조회는 lib/server-data.ts를 쓴다.
 //
-// 아직 mock-data를 쓰는 함수들(getMyHostedPots 이하)은 Phase 4/5에서 실제 API로 교체 예정.
 // ─────────────────────────────────────────────────────────────
-import { CURRENT_USER_ID, PARTICIPATIONS, POTS } from '@/lib/mock-data'
 import type { Message, Participation, Place, Pot, PotStatus, ZoneCode } from '@/lib/types'
-
-function delay<T>(data: T, ms = 300): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(data), ms))
-}
 
 async function parseJsonResponse<T>(res: Response): Promise<T> {
   const data = await res.json().catch(() => null)
@@ -87,25 +81,28 @@ export async function updateApplicationStatus(
   return data.participation
 }
 
-/** 내가 만든 공동주문 */
-export async function getMyHostedPots(): Promise<Pot[]> {
-  // TODO: replace with real API call — GET /api/me/pots?role=host (Phase 5)
-  return delay(POTS.filter((p) => p.hostId === CURRENT_USER_ID))
+/** 기본정보(닉네임/활동지역) 수정 — PATCH /api/me */
+export async function updateProfile(input: { nickname: string; zoneCode: ZoneCode }): Promise<{
+  nickname: string
+  zoneCode: ZoneCode
+}> {
+  const res = await fetch('/api/me', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const data = await parseJsonResponse<{ user: { nickname: string; zoneCode: ZoneCode } }>(res)
+  return data.user
 }
 
-/** 내가 참여 신청한 공동주문 (신청 + 원본 Pot) */
-export async function getMyApplications(): Promise<
-  { participation: Participation; pot: Pot }[]
-> {
-  // TODO: replace with real API call — GET /api/me/participations (Phase 5)
-  const mine = PARTICIPATIONS.filter((p) => p.userId === CURRENT_USER_ID)
-  const joined = mine
-    .map((participation) => {
-      const pot = POTS.find((p) => p.id === participation.potId)
-      return pot ? { participation, pot } : null
-    })
-    .filter(Boolean) as { participation: Participation; pot: Pot }[]
-  return delay(joined)
+/** 비밀번호 변경 — PATCH /api/me/password, 현재 비밀번호 확인 후 변경 */
+export async function changePassword(input: { currentPassword: string; newPassword: string }): Promise<void> {
+  const res = await fetch('/api/me/password', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  await parseJsonResponse<{ ok: true }>(res)
 }
 
 /** 채팅 메시지 증분 조회(폴링) — GET /api/rooms/:id/messages?after= */

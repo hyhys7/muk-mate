@@ -19,7 +19,7 @@
 | 2 | 공동주문 핵심 (ORDER) | ✅ 완료 (모집글 수정 화면만 별도 보류) |
 | 3 | 카카오 장소 검색 (ORDER-09) | ✅ 완료 |
 | 4 | 채팅 (CHAT) | ✅ 완료 |
-| 5 | 마이페이지 (MY) | ☐ 시작 전 (화면 stub만 존재) |
+| 5 | 마이페이지 (MY) | ✅ 완료 |
 | 6 | P1 선택 기능 | ☐ 시작 전 |
 | 7 | 프로덕션 검증 & 완료 기준 | ☐ 시작 전 |
 
@@ -135,12 +135,16 @@
 
 목표: 현재 stub인 마이페이지를 실제 데이터로 채우고, 정보 수정 화면을 신규 제작.
 
-- [ ] `app/(main)/my/page.tsx` 실제 구현 — `TabPlaceholder` 제거, 내가 만든/참여한 공동주문 목록 + 상태 표시 (MY-02, MY-03) — `getMyHostedPots()`/`getMyApplications()`는 이미 mock 레벨에서 존재하니 실제 API 연동만 하면 됨
-- [ ] **신규 화면 #13 — 기본정보·비밀번호 수정** 페이지 제작
-- [ ] `app/api/me` — PATCH(닉네임/활동지역 수정) 구현 (MY-01)
-- [ ] `app/api/me/password` — PATCH(현재 비밀번호 확인 후 변경) 구현 (AUTH-06)
+- [x] `app/(main)/my/page.tsx` 실제 구현 — `TabPlaceholder` 제거, "만든 공동주문"/"참여한 공동주문" 탭, 각 항목에 모집 상태(`PotStatusBadge`) + (참여한 경우) 내 승인 상태(`ApprovalBadge`) 동시 표시 (MY-02, MY-03). `getMyHostedPots`/`getMyApplications`를 `lib/server-data.ts`에 실제 DB 쿼리로 새로 작성 — mock 버전은 `CURRENT_USER_ID` 상수 기반이라 그대로 재사용할 수 없어서 처음부터 다시 짬
+- [x] **신규 화면 #13 — 기본정보·비밀번호 수정** (`app/(main)/my/edit/page.tsx` + `edit-profile-view.tsx`) 제작 — 기본정보 폼과 비밀번호 폼을 독립된 섹션/제출로 분리
+- [x] `app/api/me` — PATCH(닉네임/활동지역 수정) 구현 (MY-01)
+- [x] `app/api/me/password` — PATCH(현재 비밀번호 확인 후 변경) 구현 (AUTH-06). 새 비밀번호로 재로그인 성공 + 옛 비밀번호로는 실패하는 것까지 확인
+- [x] 로그아웃 버튼(Phase 1에서 미뤄뒀던 것) — 마이페이지에 추가, `next-auth/react`의 `signOut()`
+- [x] **세션 갱신 이슈 발견 및 수정**: JWT 세션 전략은 DB를 다시 안 읽기 때문에, `/api/me`로 닉네임/활동지역을 바꿔도 세션 쿠키엔 로그인 시점 값이 그대로 남아있음(재로그인 전까지 화면에 옛날 값 노출). Auth.js v5의 `trigger:'update'` 패턴으로 해결 — `auth.ts`의 `jwt` 콜백이 `trigger==='update'`일 때 클라이언트가 넘긴 값으로 토큰을 갱신하도록 추가, 클라이언트는 저장 성공 후 `useSession().update({nickname, zoneCode})` 호출
+- [x] **보안 버그 발견 및 수정**: 마이페이지/정보수정 화면에 서버 컴포넌트가 `getCurrentUser()`의 전체 `User` 객체(= `loginId` 포함)를 그대로 클라이언트 컴포넌트 prop으로 넘기고 있었음 — Next.js는 서버→클라이언트 props를 페이지의 RSC 페이로드(`<script>` 태그)에 그대로 직렬화해 브라우저로 보내므로, 화면이 실제로 쓰지도 않는 `loginId`가 HTML 소스에 그대로 노출되고 있었음. 실제로 브라우저에 도달한 HTML을 문자열 검색해서 발견함 — API 응답 바디만 확인해서는 못 잡는 종류의 leak. `{ nickname, zoneCode }`만 골라서 넘기도록 두 컴포넌트 다 수정
+- [x] mock 완전 정리: `lib/mock-data.ts` 삭제(마지막까지 남아있던 `USERS`/`POTS`/`PARTICIPATIONS`/`CURRENT_USER_ID`가 전부 이 Phase에서 실제 DB 버전으로 교체되며 무용지물이 됨)
 
-**완료 기준**: 두 계정 모두 마이페이지에서 자신이 만들거나 참여한 주문의 상태를 확인할 수 있고, 닉네임/활동지역/비밀번호를 수정할 수 있다.
+**완료 기준**: 두 계정 모두 마이페이지에서 자신이 만들거나 참여한 주문의 상태를 확인할 수 있고, 닉네임/활동지역/비밀번호를 수정할 수 있다. → **E2E로 확인 완료**: 호스트/참여자 각자의 마이페이지에 올바른 목록이 뜨는 것, 프로필 수정, 비밀번호 변경(틀린 현재 비번 거부 → 올바른 값으로 변경 → 새 비번으로만 로그인 가능), `loginId`가 페이지 소스 어디에도 없는 것까지 확인.
 
 ---
 

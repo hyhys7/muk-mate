@@ -42,12 +42,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    jwt: async ({ token, user }) => {
+    jwt: async ({ token, user, trigger, session }) => {
       if (user) {
         token.id = user.id
         token.loginId = user.loginId
         token.nickname = user.nickname
         token.zoneCode = user.zoneCode
+      }
+      // 마이페이지에서 닉네임/활동지역을 바꾼 뒤 클라이언트가 useSession().update(...)를
+      // 호출하면 여기로 들어온다 — JWT 세션은 DB를 다시 안 읽으므로, 반영하려면 이 경로가
+      // 반드시 필요하다 (안 하면 재로그인 전까지 화면에 옛날 값이 남는다).
+      if (trigger === 'update' && session) {
+        if (typeof session.nickname === 'string') token.nickname = session.nickname
+        if (typeof session.zoneCode === 'string') token.zoneCode = session.zoneCode
       }
       return token
     },

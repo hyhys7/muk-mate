@@ -168,6 +168,86 @@ export async function getPotById(id: string): Promise<Pot | undefined> {
   return mapPotRow(row, agg.get(id) ?? { count: 0, amount: 0 })
 }
 
+async function getPotsByIds(ids: string[]): Promise<Map<string, Pot>> {
+  const map = new Map<string, Pot>()
+  if (ids.length === 0) return map
+
+  const rows = (await getDb()
+    .select(potColumns)
+    .from(pots)
+    .innerJoin(users, eq(pots.hostId, users.id))
+    .where(inArray(pots.id, ids))) as PotRow[]
+
+  const agg = await getApprovedAggregates(rows.map((r) => r.id))
+  for (const r of rows) map.set(r.id, mapPotRow(r, agg.get(r.id) ?? { count: 0, amount: 0 }))
+  return map
+}
+
+/** 내가 만든 공동주문 (MY-02) */
+export async function getMyHostedPots(userId: string): Promise<Pot[]> {
+  const db = getDb()
+
+  const rows = (await db
+    .select(potColumns)
+    .from(pots)
+    .innerJoin(users, eq(pots.hostId, users.id))
+    .where(eq(pots.hostId, userId))
+    .orderBy(desc(pots.createdAt))) as PotRow[]
+
+  const agg = await getApprovedAggregates(rows.map((r) => r.id))
+  return rows.map((r) => mapPotRow(r, agg.get(r.id) ?? { count: 0, amount: 0 }))
+}
+
+/**
+ * 내가 참여 신청한 공동주문 (MY-02/03) — 내가 호스트인 글에 대한 자동 APPROVED 행은
+ * "내가 만든 글"(getMyHostedPots)에서 이미 보여주므로 여기서는 제외한다.
+ */
+export async function getMyApplications(
+  userId: string,
+): Promise<{ participation: Participation; pot: Pot }[]> {
+  const db = getDb()
+
+  const rows = await db
+    .select({
+      id: participations.id,
+      potId: participations.potId,
+      applyMessage: participations.applyMessage,
+      menuAmount: participations.menuAmount,
+      approvalStatus: participations.approvalStatus,
+      createdAt: participations.createdAt,
+      hostId: pots.hostId,
+      nickname: users.nickname,
+    })
+    .from(participations)
+    .innerJoin(pots, eq(participations.potId, pots.id))
+    .innerJoin(users, eq(participations.userId, users.id))
+    .where(eq(participations.userId, userId))
+    .orderBy(desc(participations.createdAt))
+
+  const mine = rows.filter((r) => r.hostId !== userId)
+  const potMap = await getPotsByIds(mine.map((r) => r.potId))
+
+  const result: { participation: Participation; pot: Pot }[] = []
+  for (const r of mine) {
+    const pot = potMap.get(r.potId)
+    if (!pot) continue
+    result.push({
+      participation: {
+        id: r.id,
+        potId: r.potId,
+        userId,
+        nickname: r.nickname,
+        applyMessage: r.applyMessage ?? '',
+        menuAmount: r.menuAmount ?? 0,
+        approvalStatus: r.approvalStatus,
+        createdAt: r.createdAt.toISOString(),
+      },
+      pot,
+    })
+  }
+  return result
+}
+
 /**
  * 공동주문의 참여자 목록. 호스트 자신의 행은 화면에서 별도(주최자 배지)로 표시하므로 제외한다.
  * 호스트가 아닌 조회자에게는 APPROVED 신청만 보여준다 — PENDING/REJECTED의 참여 메시지 등은
