@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useState } from 'react'
+import { signIn } from 'next-auth/react'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
@@ -11,10 +13,21 @@ export default function LoginPage() {
   const router = useRouter()
   const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    // 검증 없이 바로 이동 (프로토타입)
+    setError(null)
+    setSubmitting(true)
+
+    const result = await signIn('credentials', { loginId, password, redirect: false })
+
+    setSubmitting(false)
+    if (result?.error) {
+      setError('아이디 또는 비밀번호가 올바르지 않습니다.')
+      return
+    }
     router.push('/pots')
   }
 
@@ -42,10 +55,13 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <Button
             type="submit"
-            className="mt-1 h-12 w-full rounded-xl text-base font-bold transition active:scale-[0.98]"
+            disabled={submitting || loginId.length === 0 || password.length === 0}
+            className="mt-1 h-12 w-full gap-1.5 rounded-xl text-base font-bold transition active:scale-[0.98]"
           >
+            {submitting && <Loader2 className="size-4 animate-spin" />}
             로그인
           </Button>
         </form>

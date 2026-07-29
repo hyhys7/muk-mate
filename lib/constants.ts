@@ -1,5 +1,8 @@
 import type { Approval, PotStatus, Zone, ZoneCode } from '@/lib/types'
 
+/** signup(1단계) → onboarding(2단계) 사이에 임시로 들고 다니는 가입 정보의 sessionStorage 키 */
+export const SIGNUP_DRAFT_KEY = 'mukmate:signup-draft'
+
 /** 활동 지역(권역) 고정값 */
 export const ZONES: Zone[] = [
   { code: 'GUJEONGMUN', label: '구정문 권역' },

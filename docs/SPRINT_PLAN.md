@@ -15,7 +15,7 @@
 | Phase | 내용 | 상태 |
 |---|---|---|
 | 0 | 인프라 기반 (DB/배포/인증 골격) | ✅ 완료 |
-| 1 | 계정 (AUTH) | ☐ 시작 전 (UI만 존재, mock) |
+| 1 | 계정 (AUTH) | ✅ 완료 (로그아웃 버튼 UI는 Phase 5로 이관) |
 | 2 | 공동주문 핵심 (ORDER) | ☐ 시작 전 (목록/상세/작성 UI 존재, mock) |
 | 3 | 네이버 장소 검색 (ORDER-09) | ☐ 시작 전 |
 | 4 | 채팅 (CHAT) | ☐ 시작 전 (화면 stub만 존재) |
@@ -57,16 +57,17 @@
 
 목표: 로그인/회원가입 mock을 실제 동작으로 교체. `mukmate-auth`, `mukmate-api-contract` 스킬 참고.
 
-- [ ] `app/api/auth/signup` Route Handler — bcrypt 해시, `login_id` 중복 시 명확한 에러 (AUTH-01, AUTH-02)
-- [ ] `app/api/auth/check-id` Route Handler — 회원가입 폼의 "중복확인" 버튼이 현재는 `idChecked=true`만 세팅하는 로컬 상태 — 실제 API 호출로 교체
-- [ ] NextAuth Credentials 로그인/로그아웃 연결 (AUTH-03, AUTH-05)
-- [ ] `app/(auth)/signup/page.tsx` 제출 로직을 실제 `/api/auth/signup` 호출로 교체 (현재는 `router.push('/onboarding')`만 함)
-- [ ] `app/(auth)/login/page.tsx` 제출 로직을 실제 로그인 호출로 교체 (현재는 검증 없이 `router.push('/pots')`)
-- [ ] 온보딩(닉네임+활동지역) 단계를 회원가입 API의 일부로 통합할지, signup 이후 별도 스텝으로 유지할지 결정하고 반영
-- [ ] 서버 세션 가드: 비로그인 사용자가 글 작성·참여 신청·채팅을 못 하도록 미들웨어 또는 각 API 핸들러에서 검사 (AUTH-04) — 클라이언트 라우트 가드만으로는 불충분
-- [ ] 로그인 유지 확인 — 새로고침 후에도 세션 유지 (AUTH-05 전제)
+- [x] `app/api/auth/signup` Route Handler — bcrypt 해시(`bcryptjs`), 길이 검증(아이디 4~10/비밀번호 4~16/닉네임 ≤12), 활동지역 존재 검증, `login_id` 중복 시 409 (AUTH-01, AUTH-02). DB 유니크 제약 위반(`23505`) 레이스 컨디션까지 방어
+- [x] `app/api/auth/check-id` Route Handler — 회원가입 폼의 "중복확인" 버튼과 실제 연동
+- [x] NextAuth Credentials 로그인 연결 (AUTH-03) — CSRF 토큰 발급 → 로그인 → 세션 조회 → 오답 비밀번호 거부까지 Node fetch 스크립트로 직접 검증
+- [~] NextAuth 로그아웃 (AUTH-05) — `auth.ts`의 `signOut` 자체는 준비되어 있으나, 누를 수 있는 버튼 UI는 마이페이지(Phase 5)가 만들어질 때 추가 예정. 지금 체크하지 않는 이유: 실제로 로그아웃할 화면이 없음
+- [x] `app/(auth)/signup/page.tsx` 제출 로직을 실제 `/api/auth/check-id`·세션스토리지 임시저장으로 교체
+- [x] `app/(auth)/login/page.tsx` 제출 로직을 `next-auth/react`의 `signIn('credentials', ...)`으로 교체, 실패 시 에러 메시지 표시
+- [x] **온보딩 통합 방식 결정**: signup(1단계: 아이디/비번/닉네임) + onboarding(2단계: 닉네임 확인/활동지역)을 **하나의 가입 마법사**로 취급 — signup 단계에서는 계정을 만들지 않고 `sessionStorage`에 임시 보관만 하다가, onboarding 마지막 단계("시작하기")에서 전체 4개 필드로 `POST /api/auth/signup` 1회 호출 → 성공 시 `signIn`으로 자동 로그인 → `/pots`. PRD §5-3이 4개 필드를 모두 "회원가입 필수 정보"로 못 박고 있어서, 중간에 반쪽짜리 계정이 생기지 않도록 이렇게 결정함. 이에 맞춰 `users.zone_code`도 스키마에서 nullable → **NOT NULL**로 수정(Neon 반영 완료)
+- [ ] **[Phase 2/4로 이관]** 서버 세션 가드(AUTH-04) — 지금 시점엔 가드를 걸 대상(pots/신청/채팅 API)이 아직 없음(전부 Phase 2·4에서 생성 예정). `auth()` 헬퍼(`@/auth`)는 이미 준비되어 있고, 각 mutating 핸들러가 만들어질 때 그 안에서 `const session = await auth(); if (!session?.user) return 401` 패턴을 적용하기로 함
+- [x] 로그인 유지 확인 — JWT 세션 전략이라 쿠키 기반으로 유지되는 구조 확인. `/api/auth/session` 재조회로 세션 유지 자체는 검증했으나, **브라우저 새로고침으로 직접 확인은 아직 안 함**(브라우저 자동화 도구가 이 환경에 연결되어 있지 않아 API 레벨로만 검증)
 
-**완료 기준**: 서로 다른 두 계정으로 회원가입·로그인 가능, 중복 아이디 거부, 새로고침 후 세션 유지. (§13-1 관련 항목)
+**완료 기준**: 서로 다른 두 계정으로 회원가입·로그인 가능, 중복 아이디 거부, 새로고침 후 세션 유지. (§13-1 관련 항목) → **핵심 로직은 검증 완료. AUTH-04는 의도적으로 Phase 2/4로 이관, 로그아웃 버튼은 Phase 5로 이관.**
 
 ---
 

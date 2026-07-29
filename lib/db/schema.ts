@@ -34,7 +34,9 @@ export const users = pgTable('users', {
   loginId: text('login_id').notNull().unique(), // 외부에 노출하지 않음 — 표시는 nickname만
   passwordHash: text('password_hash').notNull(), // bcrypt 해시, 평문 저장 금지
   nickname: text('nickname').notNull(),
-  zoneCode: text('zone_code').references(() => zones.code),
+  zoneCode: text('zone_code')
+    .notNull()
+    .references(() => zones.code), // PRD §5-3: 활동 지역은 회원가입 필수 정보
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
