@@ -7,6 +7,7 @@ import { StoreAvatar } from "@/components/store-avatar"
 import { PotStatusBadge, ApprovalBadge } from "@/components/status-badge"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import {
   formatDateTime,
   formatDeadline,
@@ -14,6 +15,7 @@ import {
   formatWon,
 } from "@/lib/format"
 import { zoneLabel } from "@/lib/constants"
+import { applyToPot } from "@/lib/api"
 import type { Participation, Pot } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -28,6 +30,25 @@ export function PotDetailView({
 }) {
   const router = useRouter()
   const [applied, setApplied] = useState(false)
+  const [showApplyForm, setShowApplyForm] = useState(false)
+  const [applyMessage, setApplyMessage] = useState("")
+  const [applying, setApplying] = useState(false)
+  const [applyError, setApplyError] = useState<string | null>(null)
+
+  async function handleApply() {
+    setApplying(true)
+    setApplyError(null)
+    try {
+      await applyToPot(pot.id, applyMessage.trim())
+      setApplied(true)
+      setShowApplyForm(false)
+      router.refresh()
+    } catch (err) {
+      setApplyError(err instanceof Error ? err.message : "참여 신청에 실패했어요.")
+    } finally {
+      setApplying(false)
+    }
+  }
 
   const deadline = formatDeadline(pot.deadlineAt)
   const isAmount = pot.targetType === "AMOUNT"
@@ -220,13 +241,43 @@ export function PotDetailView({
               신청자 관리 ({participations.filter((p) => p.approvalStatus === "PENDING").length})
             </Button>
           ) : canApply ? (
-            <Button
-              className="h-12 w-full rounded-xl text-base font-bold"
-              disabled={applied}
-              onClick={() => setApplied(true)}
-            >
-              {applied ? "신청 완료 — 승인 대기중" : "참여 신청하기"}
-            </Button>
+            showApplyForm ? (
+              <div className="flex flex-col gap-2">
+                {applyError && <p className="text-sm text-destructive">{applyError}</p>}
+                <Textarea
+                  value={applyMessage}
+                  onChange={(e) => setApplyMessage(e.target.value)}
+                  placeholder="참여 메시지를 짧게 남겨주세요 (선택)"
+                  maxLength={200}
+                  className="min-h-[70px] rounded-xl"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="h-12 flex-1 rounded-xl text-base font-bold"
+                    onClick={() => setShowApplyForm(false)}
+                    disabled={applying}
+                  >
+                    취소
+                  </Button>
+                  <Button
+                    className="h-12 flex-[2] rounded-xl text-base font-bold"
+                    onClick={handleApply}
+                    disabled={applying}
+                  >
+                    {applying ? "신청하는 중..." : "신청 보내기"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                className="h-12 w-full rounded-xl text-base font-bold"
+                disabled={applied}
+                onClick={() => setShowApplyForm(true)}
+              >
+                {applied ? "신청 완료 — 승인 대기중" : "참여 신청하기"}
+              </Button>
+            )
           ) : (
             <Button className="h-12 w-full rounded-xl text-base font-bold" disabled>
               {deadline.expired ? "마감된 공동주문이에요" : "참여할 수 없어요"}

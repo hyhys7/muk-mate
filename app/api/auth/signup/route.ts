@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 
 import bcrypt from 'bcryptjs'
 
-import { getDb } from '@/lib/db'
+import { getDb, getPgErrorCode } from '@/lib/db'
 import { users, zones } from '@/lib/db/schema'
 
 const LOGIN_ID_MIN = 4
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ user: created }, { status: 201 })
   } catch (err) {
-    const code = (err as { code?: string } | undefined)?.code
+    const code = getPgErrorCode(err)
     if (code === UNIQUE_VIOLATION) {
       return NextResponse.json({ error: '이미 사용 중인 아이디입니다.' }, { status: 409 })
     }

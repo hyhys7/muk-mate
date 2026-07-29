@@ -1,8 +1,10 @@
 // ─────────────────────────────────────────────────────────────
-// 데이터 접근 레이어
-// 지금은 mock-data를 Promise.resolve로 반환만 한다.
-// 백엔드 연동 시 이 파일의 함수 본문만 실제 fetch로 교체하면 된다.
-// (컴포넌트는 이 함수들만 호출하고, mock-data를 직접 import 하지 않는다.)
+// 클라이언트(브라우저) 전용 데이터 접근 계층 — 'use client' 컴포넌트에서 호출한다.
+// 여기 있는 함수는 전부 fetch()로 실제 API를 부른다. DB(@/lib/db)나 인증(@/auth)을
+// 직접 import하지 않는다 — 그러면 서버 전용 코드가 브라우저 번들에 끼어 들어가려다
+// 빌드가 깨진다. 서버 컴포넌트가 필요로 하는 조회는 lib/server-data.ts를 쓴다.
+//
+// 아직 mock-data를 쓰는 함수들(getMyHostedPots 이하)은 Phase 4/5에서 실제 API로 교체 예정.
 // ─────────────────────────────────────────────────────────────
 import {
   CHAT_ROOMS,
@@ -13,7 +15,6 @@ import {
   PLACES,
   POTS,
   RECENT_PLACE_KEYWORDS,
-  USERS,
 } from '@/lib/mock-data'
 import type {
   ChatRoom,
@@ -22,7 +23,6 @@ import type {
   Place,
   Pot,
   PotStatus,
-  User,
   ZoneCode,
 } from '@/lib/types'
 
@@ -30,94 +30,16 @@ function delay<T>(data: T, ms = 300): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(data), ms))
 }
 
-/** 현재 로그인 사용자 */
-export async function getCurrentUser(): Promise<User> {
-  // TODO: replace with real API call — GET /api/me
-  return delay(USERS.find((u) => u.id === CURRENT_USER_ID)!)
+async function parseJsonResponse<T>(res: Response): Promise<T> {
+  const data = await res.json().catch(() => null)
+  if (!res.ok) {
+    const message = (data as { error?: string } | null)?.error ?? '요청에 실패했습니다.'
+    throw new Error(message)
+  }
+  return data as T
 }
 
-/** 공동주문 목록 (지역/상태 필터) */
-export async function getPots(params?: {
-  zone?: ZoneCode
-  status?: PotStatus | 'ALL'
-}): Promise<Pot[]> {
-  // TODO: replace with real API call — GET /api/pots?zone=&status=
-  let list = [...POTS]
-  if (params?.zone) list = list.filter((p) => p.zoneCode === params.zone)
-  if (params?.status && params.status !== 'ALL')
-    list = list.filter((p) => p.status === params.status)
-  return delay(list)
-}
-
-/** 공동주문 상세 */
-export async function getPot(id: string): Promise<Pot | undefined> {
-  // TODO: replace with real API call — GET /api/pots/:id
-  return delay(POTS.find((p) => p.id === id))
-}
-
-/** 특정 공동주문의 참여 신청 목록 */
-export async function getParticipations(potId: string): Promise<Participation[]> {
-  // TODO: replace with real API call — GET /api/pots/:id/participations
-  return delay(PARTICIPATIONS.filter((p) => p.potId === potId))
-}
-
-/** 내가 만든 공동주문 */
-export async function getMyHostedPots(): Promise<Pot[]> {
-  // TODO: replace with real API call — GET /api/me/pots?role=host
-  return delay(POTS.filter((p) => p.hostId === CURRENT_USER_ID))
-}
-
-/** 내가 참여 신청한 공동주문 (신청 + 원본 Pot) */
-export async function getMyApplications(): Promise<
-  { participation: Participation; pot: Pot }[]
-> {
-  // TODO: replace with real API call — GET /api/me/participations
-  const mine = PARTICIPATIONS.filter((p) => p.userId === CURRENT_USER_ID)
-  const joined = mine
-    .map((participation) => {
-      const pot = POTS.find((p) => p.id === participation.potId)
-      return pot ? { participation, pot } : null
-    })
-    .filter(Boolean) as { participation: Participation; pot: Pot }[]
-  return delay(joined)
-}
-
-/** 내 채팅방 목록 */
-export async function getMyRooms(): Promise<ChatRoom[]> {
-  // TODO: replace with real API call — GET /api/me/rooms
-  return delay(CHAT_ROOMS)
-}
-
-/** 채팅방 단건 */
-export async function getRoom(roomId: string): Promise<ChatRoom | undefined> {
-  // TODO: replace with real API call — GET /api/rooms/:id
-  return delay(CHAT_ROOMS.find((r) => r.id === roomId))
-}
-
-/** 채팅 메시지 목록 */
-export async function getMessages(roomId: string): Promise<Message[]> {
-  // TODO: replace with real API call — GET /api/rooms/:id/messages?after=lastId
-  return delay(MESSAGES[roomId] ?? [])
-}
-
-/** 장소 검색 (지금은 문자열 필터링만) */
-export async function searchPlaces(keyword: string): Promise<Place[]> {
-  // TODO: replace with real API call — GET /api/places/search?q=
-  const q = keyword.trim()
-  if (!q) return delay([])
-  return delay(PLACES.filter((p) => p.name.includes(q) || p.category.includes(q)))
-}
-
-/** 자주 쓰는 수령 장소 / 최근 검색어 (검색 전 상태용) */
-export async function getPlaceSuggestions(): Promise<{
-  frequent: Place[]
-  recent: string[]
-}> {
-  // TODO: replace with real API call — GET /api/places/suggestions
-  return delay({ frequent: FREQUENT_PICKUP_PLACES, recent: RECENT_PLACE_KEYWORDS })
-}
-
-/** 공동주문 신규 모집글 등록 */
+/** 공동주문 신규 모집글 등록 — POST /api/pots */
 export async function createPot(input: {
   storeName: string
   storeAddress?: string
@@ -133,37 +55,103 @@ export async function createPot(input: {
   pickupNote?: string
   extraNote?: string
 }): Promise<Pot> {
-  const me = await getCurrentUser()
-  const now = Date.now()
-  const deadlineAt = new Date(now + input.deadlineMinutes * 60_000).toISOString()
-  const pickupAt = new Date(now + input.pickupMinutes * 60_000).toISOString()
-
-  const newPot: Pot = {
-    id: `p_${Date.now()}`,
-    hostId: me.id,
-    hostNickname: me.nickname,
-    zoneCode: input.zoneCode,
-    storeName: input.storeName,
-    storeAddress: input.storeAddress || '',
-    orderSummary: input.orderSummary,
-    targetType: input.targetType,
-    targetValue: input.targetValue,
-    currentCount: 1,
-    currentAmount: input.targetType === 'AMOUNT' ? 0 : undefined,
-    deliveryFee: input.deliveryFee,
-    deadlineAt,
-    pickupAt,
-    pickupName: input.pickupName,
-    pickupAddress: input.pickupAddress || '',
-    pickupNote: input.pickupNote || '',
-    extraNote: input.extraNote || '',
-    status: 'OPEN',
-    isLocationVerified: true,
-    distanceMeters: 150,
-    createdAt: new Date().toISOString(),
-  }
-
-  POTS.unshift(newPot)
-  return delay(newPot)
+  const res = await fetch('/api/pots', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const data = await parseJsonResponse<{ pot: Pot }>(res)
+  return data.pot
 }
 
+/** 모집글 상태 변경(마감/완료/취소) — PATCH /api/pots/:id, 모집자 전용 */
+export async function updatePotStatus(potId: string, status: PotStatus): Promise<Pot> {
+  const res = await fetch(`/api/pots/${potId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  })
+  const data = await parseJsonResponse<{ pot: Pot }>(res)
+  return data.pot
+}
+
+/** 참여 신청 — POST /api/pots/:id/participations */
+export async function applyToPot(potId: string, applyMessage: string): Promise<Participation> {
+  const res = await fetch(`/api/pots/${potId}/participations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ applyMessage }),
+  })
+  const data = await parseJsonResponse<{ participation: Participation }>(res)
+  return data.participation
+}
+
+/** 참여 신청 승인/거절 — PATCH /api/applications/:id, 모집자 전용 */
+export async function updateApplicationStatus(
+  applicationId: string,
+  action: 'APPROVE' | 'REJECT',
+): Promise<Participation> {
+  const res = await fetch(`/api/applications/${applicationId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  })
+  const data = await parseJsonResponse<{ participation: Participation }>(res)
+  return data.participation
+}
+
+/** 내가 만든 공동주문 */
+export async function getMyHostedPots(): Promise<Pot[]> {
+  // TODO: replace with real API call — GET /api/me/pots?role=host (Phase 5)
+  return delay(POTS.filter((p) => p.hostId === CURRENT_USER_ID))
+}
+
+/** 내가 참여 신청한 공동주문 (신청 + 원본 Pot) */
+export async function getMyApplications(): Promise<
+  { participation: Participation; pot: Pot }[]
+> {
+  // TODO: replace with real API call — GET /api/me/participations (Phase 5)
+  const mine = PARTICIPATIONS.filter((p) => p.userId === CURRENT_USER_ID)
+  const joined = mine
+    .map((participation) => {
+      const pot = POTS.find((p) => p.id === participation.potId)
+      return pot ? { participation, pot } : null
+    })
+    .filter(Boolean) as { participation: Participation; pot: Pot }[]
+  return delay(joined)
+}
+
+/** 내 채팅방 목록 */
+export async function getMyRooms(): Promise<ChatRoom[]> {
+  // TODO: replace with real API call — GET /api/rooms (Phase 4)
+  return delay(CHAT_ROOMS)
+}
+
+/** 채팅방 단건 */
+export async function getRoom(roomId: string): Promise<ChatRoom | undefined> {
+  // TODO: replace with real API call — GET /api/rooms/:id (Phase 4)
+  return delay(CHAT_ROOMS.find((r) => r.id === roomId))
+}
+
+/** 채팅 메시지 목록 */
+export async function getMessages(roomId: string): Promise<Message[]> {
+  // TODO: replace with real API call — GET /api/rooms/:id/messages?after=lastId (Phase 4)
+  return delay(MESSAGES[roomId] ?? [])
+}
+
+/** 장소 검색 (지금은 문자열 필터링만) */
+export async function searchPlaces(keyword: string): Promise<Place[]> {
+  // TODO: replace with real API call — GET /api/places/search?q= (Phase 3)
+  const q = keyword.trim()
+  if (!q) return delay([])
+  return delay(PLACES.filter((p) => p.name.includes(q) || p.category.includes(q)))
+}
+
+/** 자주 쓰는 수령 장소 / 최근 검색어 (검색 전 상태용) */
+export async function getPlaceSuggestions(): Promise<{
+  frequent: Place[]
+  recent: string[]
+}> {
+  // TODO: replace with real API call — GET /api/places/suggestions (Phase 3)
+  return delay({ frequent: FREQUENT_PICKUP_PLACES, recent: RECENT_PLACE_KEYWORDS })
+}

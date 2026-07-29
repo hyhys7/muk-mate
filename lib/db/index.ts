@@ -31,3 +31,16 @@ export function getDb(): NeonHttpDatabase<typeof schema> {
   if (!_db) _db = createDb()
   return _db
 }
+
+/**
+ * Postgres 에러 코드(SQLSTATE) 확인 헬퍼.
+ * drizzle-orm의 neon-http 드라이버는 실제 Postgres 에러를 DrizzleQueryError로 한 번
+ * 감싸기 때문에 `.code`가 최상위가 아니라 `err.cause.code`에 들어있다 — 이 위치를
+ * 몰라서 `err.code`만 확인하면 유니크 제약 위반(23505) 같은 걸 못 잡고 그대로
+ * 500으로 새 나간다. 두 위치를 다 확인해서 드라이버 버전 차이에도 방어한다.
+ */
+export function getPgErrorCode(err: unknown): string | undefined {
+  const direct = (err as { code?: string } | undefined)?.code
+  if (direct) return direct
+  return (err as { cause?: { code?: string } } | undefined)?.cause?.code
+}

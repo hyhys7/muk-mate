@@ -16,7 +16,7 @@
 |---|---|---|
 | 0 | 인프라 기반 (DB/배포/인증 골격) | ✅ 완료 |
 | 1 | 계정 (AUTH) | ✅ 완료 (로그아웃 버튼 UI는 Phase 5로 이관) |
-| 2 | 공동주문 핵심 (ORDER) | ☐ 시작 전 (목록/상세/작성 UI 존재, mock) |
+| 2 | 공동주문 핵심 (ORDER) | ✅ 완료 (모집글 수정 화면만 별도 보류) |
 | 3 | 네이버 장소 검색 (ORDER-09) | ☐ 시작 전 |
 | 4 | 채팅 (CHAT) | ☐ 시작 전 (화면 stub만 존재) |
 | 5 | 마이페이지 (MY) | ☐ 시작 전 (화면 stub만 존재) |
@@ -75,21 +75,23 @@
 
 목표: 목록/상세/작성 화면을 실제 DB에 연결하고, 신청자 관리 화면(현재 없음)을 신규 제작. `mukmate-pot-lifecycle`, `mukmate-api-contract` 스킬 참고.
 
-- [ ] `lib/db` 클라이언트 헬퍼 작성 (Drizzle + Neon 연결)
-- [ ] `app/api/pots` — GET(목록, zone/status 필터), POST(생성) 구현
-- [ ] `app/api/pots/:id` — GET(상세), PATCH(수정/상태변경, **host만**) 구현 (ORDER-08)
-- [ ] `app/api/pots/:id/applications` — POST(참여 신청, 메시지 포함) 구현 (ORDER-03)
-- [ ] `app/api/applications/:id` — PATCH(승인/거절, **host만**) 구현 (ORDER-04)
-- [ ] `lib/api.ts`의 각 함수 본문을 mock에서 위 API 호출로 교체 (함수 시그니처는 이미 확정되어 있으므로 본문만 교체 — 각 함수 위 TODO 주석이 대상 엔드포인트를 명시함)
-- [ ] `pot-create-form.tsx` → 실제 저장 확인 (현재 `createPot`은 클라이언트 메모리 배열만 수정해 새로고침하면 사라짐)
-- [ ] 마감 시각 자동 판정 쿼리 적용: `CASE WHEN status='OPEN' AND deadline_at<now() THEN 'CLOSED' ELSE status END` (크론 없이, ORDER-11)
-- [ ] 중복 신청 방지 확인 (`UNIQUE(pot_id, user_id)` 제약 위반 시 사용자에게 명확한 에러)
-- [ ] 호스트 자신도 `participations`에 APPROVED로 자동 등록 (인원수 계산/채팅 권한 로직 단순화용)
-- [ ] **신규 화면 #7 — 참여 신청자 관리** (`app/(main)/pots/[id]/applications/page.tsx`) 제작 — 현재 상세 화면의 "신청자 관리" 링크가 가리키는 대상이 없는 dead link 상태
-- [ ] 상세 화면의 "참여 신청하기"를 실제 API 호출로 교체 (현재는 로컬 state만 토글)
-- [ ] 모집글 **수정** 플로우 추가 (현재 작성만 있고 수정 없음, ORDER-08)
+- [x] **아키텍처 결정**: `lib/api.ts`가 서버 컴포넌트·클라이언트 컴포넌트 양쪽에서 import되고 있어서, 여기에 DB 접근 코드를 섞으면 Next.js가 서버 전용 코드(neon/drizzle/bcrypt)를 브라우저 번들에 끌고 가려다 빌드가 깨진다. → **`lib/server-data.ts`(서버 전용, `server-only` 패키지로 실수 방지)를 신설**해 서버 컴포넌트가 쓰는 조회(`listPots`/`getPotById`/`getParticipationsForPot`/`getCurrentUser`)를 옮기고, `lib/api.ts`는 브라우저 fetch() 함수만 남김
+- [x] `app/api/pots` — GET(목록, zone/status 필터), POST(생성 + 호스트 자동 APPROVED 등록) 구현
+- [x] `app/api/pots/:id` — GET(상세), PATCH(상태변경, **host만**, 상태전이 규칙 검증) 구현 (ORDER-05). **필드 수정(edit) 자체는 이번 Phase에서 보류** — 아래 참고
+- [x] `app/api/pots/:id/participations` — POST(참여 신청, 메시지 포함) 구현 (ORDER-03). *(엔드포인트 경로는 PRD 표의 `/applications`가 아니라 기존 mock 스캐폴드의 TODO 주석이 이미 명시해 둔 `/participations`를 따름 — 동일 리소스, 이름만 다름)*
+- [x] `app/api/applications/:id` — PATCH(승인/거절, **host만**) 구현 (ORDER-04), 이미 처리된 신청 재처리 방지
+- [x] `lib/api.ts`의 각 함수 본문을 mock에서 위 API 호출로 교체
+- [x] `pot-create-form.tsx` → 실제 저장 확인 (E2E로 생성 후 재조회까지 검증, 이제 새로고침해도 유지됨)
+- [x] 마감 시각 자동 판정 적용 (ORDER-11) — SQL `CASE WHEN`이 아니라 조회 시점에 JS로 `computeEffectiveStatus()` 계산(같은 효과), 목록·상세·참여신청·상태변경 전부 이 함수를 공유
+- [x] 중복 신청 방지 확인 — `UNIQUE(pot_id, user_id)` 위반 시 409. **버그를 하나 잡음**: drizzle의 neon-http 드라이버가 실제 Postgres 에러를 `DrizzleQueryError`로 감싸서 `.code`가 `err.code`가 아니라 `err.cause.code`에 있었음 — 처음엔 이걸 몰라서 중복 신청이 409 대신 500으로 새 나갔다가, `lib/db/index.ts`에 `getPgErrorCode()` 헬퍼를 추가해 해결
+- [x] 호스트 자신도 `participations`에 APPROVED로 자동 등록 — E2E로 `currentCount`에 반영되는 것까지 확인
+- [x] **신규 화면 #7 — 참여 신청자 관리** (`app/(main)/pots/[id]/applications/page.tsx` + `pot-applications-view.tsx`) 제작 — PENDING/APPROVED/REJECTED 구분 표시, 승인·거절, 모집 마감/완료/취소 상태전이 버튼까지 포함. 호스트가 아니면 상세 페이지로 리다이렉트
+- [x] 상세 화면의 "참여 신청하기"를 실제 API 호출로 교체. **부수 발견**: 기존 UI에는 참여 메시지 입력창 자체가 없었음(ORDER-03이 요구하는데 스캐폴드에 누락) — 인라인 textarea 추가
+- [x] **보안 수정**: 참여자 목록에서 PENDING/REJECTED 신청자의 메시지 등은 원래 클라이언트에서 `isHost` 조건부 렌더링으로만 숨겨져 있었음(누구나 페이지 데이터를 까보면 다 보임) — `getParticipationsForPot()`가 호스트가 아니면 서버에서부터 APPROVED만 반환하도록 수정
+- [x] 로그인한 사용자만 `(main)` 구간에 접근하도록 페이지 레벨 가드 적용 (`getCurrentUser()`가 세션 없으면 `/login`으로 redirect) — Phase 1에서 미룬 AUTH-04의 페이지 보호 부분
+- [~] 모집글 **수정(edit)** 플로우 — **의도적으로 보류**. 작성 폼의 마감시각 입력이 "지금부터 N분 후" 프리셋이라, 수정 화면에서 그대로 재사용하면 이미 정해진 절대 마감시각을 수정 시점 기준으로 다시 계산해버리는 문제가 있음 — 절대 시각을 어떻게 표시/입력할지 디자인 결정이 필요해서 별도 작업으로 분리. `PATCH /api/pots/:id`는 상태 변경만 지원
 
-**완료 기준**: A가 모집글을 만들고, B가 신청하고, A가 승인/거절하면 그 결과가 새로고침 후에도 유지된다. (§13-1 관련 항목 다수)
+**완료 기준**: A가 모집글을 만들고, B가 신청하고, A가 승인/거절하면 그 결과가 새로고침 후에도 유지된다. (§13-1 관련 항목 다수) → **호스트/참여자/제3자 3개 계정으로 전체 플로우, 권한 거부(호스트 아님/이미 처리됨/마감 후 신청 등) 케이스까지 실제 Neon DB 대상 E2E 스크립트로 검증 완료.**
 
 ---
 
