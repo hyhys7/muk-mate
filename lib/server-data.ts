@@ -1,12 +1,22 @@
 import 'server-only'
 
-import { desc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
 
 import { auth } from '@/auth'
 import { getDb } from '@/lib/db'
-import { participations, pots, users } from '@/lib/db/schema'
-import type { Participation, Pot, PotStatus, User, ZoneCode } from '@/lib/types'
+import { chatRooms, messages, participations, pots, users } from '@/lib/db/schema'
+import { formatDateTime } from '@/lib/format'
+import type {
+  ChatRoom,
+  Message,
+  Participation,
+  Pot,
+  PotStatus,
+  RoomAccess,
+  User,
+  ZoneCode,
+} from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // 서버 컴포넌트 전용 데이터 접근 계층.
@@ -226,4 +236,179 @@ export async function getSessionUserOrNull(): Promise<{ id: string; loginId: str
     nickname: session.user.nickname,
     zoneCode: session.user.zoneCode as ZoneCode,
   }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 채팅 (PRD §5-2, §10-3①). 폴링 전용 — WebSocket/SSE 안 씀.
+// 자세한 규칙: .claude/skills/mukmate-chat-polling/SKILL.md
+// ─────────────────────────────────────────────────────────────
+
+async function getLastMessagesForRooms(roomIds: string[]) {
+  const db = getDb()
+  const result = new Map<string, { content: string; createdAt: Date }>()
+  for (const roomId of roomIds) {
+    const [last] = await db
+      .select({ content: messages.content, createdAt: messages.createdAt })
+      .from(messages)
+      .where(eq(messages.roomId, roomId))
+      .orderBy(desc(messages.id))
+      .limit(1)
+    if (last) result.set(roomId, last)
+  }
+  return result
+}
+
+/**
+ * 로그인 사용자의 채팅방 목록 — 내가 host이거나 APPROVED 참여자인 ORDER 방
+ * (호스트도 자동 APPROVED 행이 있으므로 별도 분기 불필요) + 전체 COMMUNITY 고정방.
+ */
+export async function listRoomsForUser(userId: string): Promise<ChatRoom[]> {
+  const db = getDb()
+
+  const orderRoomsRaw = await db
+    .select({
+      id: chatRooms.id,
+      potId: chatRooms.potId,
+      title: chatRooms.title,
+      potStatus: pots.status,
+      potDeadlineAt: pots.deadlineAt,
+      pickupName: pots.pickupName,
+      pickupAt: pots.pickupAt,
+    })
+    .from(chatRooms)
+    .innerJoin(pots, eq(chatRooms.potId, pots.id))
+    .innerJoin(
+      participations,
+      and(
+        eq(participations.potId, pots.id),
+        eq(participations.userId, userId),
+        eq(participations.approvalStatus, 'APPROVED'),
+      ),
+    )
+    .where(eq(chatRooms.type, 'ORDER'))
+    .orderBy(desc(chatRooms.createdAt))
+
+  const communityRoomsRaw = await db
+    .select({ id: chatRooms.id, title: chatRooms.title, createdAt: chatRooms.createdAt })
+    .from(chatRooms)
+    .where(eq(chatRooms.type, 'COMMUNITY'))
+    .orderBy(asc(chatRooms.createdAt))
+
+  const allRoomIds = [...orderRoomsRaw.map((r) => r.id), ...communityRoomsRaw.map((r) => r.id)]
+  const lastMessages = await getLastMessagesForRooms(allRoomIds)
+
+  const orderRooms: ChatRoom[] = orderRoomsRaw.map((r) => {
+    const last = lastMessages.get(r.id)
+    return {
+      id: r.id,
+      type: 'ORDER',
+      potId: r.potId,
+      title: r.title,
+      subtitle: r.pickupAt ? `${r.pickupName} · ${formatDateTime(r.pickupAt.toISOString())}` : r.pickupName,
+      potStatus: computeEffectiveStatus(r.potStatus, r.potDeadlineAt),
+      lastMessage: last?.content ?? '',
+      lastMessageAt: last?.createdAt.toISOString() ?? '',
+      // 읽음 여부를 추적하는 컬럼이 없어 항상 0 — PRD가 요구하지 않는 기능이라 스키마를 늘리지 않음
+      unreadCount: 0,
+    }
+  })
+
+  const communityRooms: ChatRoom[] = communityRoomsRaw.map((r) => {
+    const last = lastMessages.get(r.id)
+    return {
+      id: r.id,
+      type: 'COMMUNITY',
+      potId: null,
+      title: r.title,
+      lastMessage: last?.content ?? '',
+      lastMessageAt: last?.createdAt.toISOString() ?? '',
+      unreadCount: 0,
+    }
+  })
+
+  return [...orderRooms, ...communityRooms]
+}
+
+/**
+ * 채팅방 접근 권한 검사 — null이면 접근 불가(404/403 처리는 호출부가 한다).
+ * ORDER 방은 host+APPROVED 참여자만, COMMUNITY 방은 로그인 사용자 전체 (CHAT-01).
+ * URL을 직접 입력해도 이 검사를 반드시 거치게 만드는 게 핵심 — 클라이언트 라우트
+ * 가드만으로는 불충분하다.
+ */
+export async function getRoomForViewer(roomId: string, viewerId: string | undefined): Promise<RoomAccess | null> {
+  if (!viewerId) return null
+
+  const db = getDb()
+  const [room] = await db.select().from(chatRooms).where(eq(chatRooms.id, roomId)).limit(1)
+  if (!room) return null
+
+  if (room.type === 'COMMUNITY') {
+    return { id: room.id, type: 'COMMUNITY', title: room.title }
+  }
+
+  if (!room.potId) return null
+  const [pot] = await db.select().from(pots).where(eq(pots.id, room.potId)).limit(1)
+  if (!pot) return null
+
+  const [membership] = await db
+    .select({ id: participations.id })
+    .from(participations)
+    .where(
+      and(
+        eq(participations.potId, pot.id),
+        eq(participations.userId, viewerId),
+        eq(participations.approvalStatus, 'APPROVED'),
+      ),
+    )
+    .limit(1)
+
+  if (!membership) return null
+
+  return {
+    id: room.id,
+    type: 'ORDER',
+    title: room.title,
+    pot: {
+      id: pot.id,
+      storeName: pot.storeName,
+      pickupName: pot.pickupName,
+      pickupAt: pot.pickupAt ? pot.pickupAt.toISOString() : '',
+      status: computeEffectiveStatus(pot.status, pot.deadlineAt),
+    },
+  }
+}
+
+/** `after` 커서(직전까지 받은 마지막 messages.id) 이후의 새 메시지만 증분 조회한다. */
+export async function getMessagesForRoom(
+  roomId: string,
+  afterId: number,
+  viewerId: string | undefined,
+): Promise<Message[]> {
+  const db = getDb()
+
+  const rows = await db
+    .select({
+      id: messages.id,
+      roomId: messages.roomId,
+      senderId: messages.senderId,
+      senderNickname: users.nickname,
+      type: messages.type,
+      content: messages.content,
+      createdAt: messages.createdAt,
+    })
+    .from(messages)
+    .leftJoin(users, eq(messages.senderId, users.id))
+    .where(and(eq(messages.roomId, roomId), gt(messages.id, afterId)))
+    .orderBy(asc(messages.id))
+
+  return rows.map((r) => ({
+    id: String(r.id),
+    roomId: r.roomId,
+    senderId: r.senderId ?? '',
+    senderNickname: r.senderNickname ?? '',
+    type: r.type,
+    content: r.content,
+    createdAt: r.createdAt.toISOString(),
+    isMine: r.senderId === viewerId,
+  }))
 }

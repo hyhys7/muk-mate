@@ -6,22 +6,8 @@
 //
 // 아직 mock-data를 쓰는 함수들(getMyHostedPots 이하)은 Phase 4/5에서 실제 API로 교체 예정.
 // ─────────────────────────────────────────────────────────────
-import {
-  CHAT_ROOMS,
-  CURRENT_USER_ID,
-  MESSAGES,
-  PARTICIPATIONS,
-  POTS,
-} from '@/lib/mock-data'
-import type {
-  ChatRoom,
-  Message,
-  Participation,
-  Place,
-  Pot,
-  PotStatus,
-  ZoneCode,
-} from '@/lib/types'
+import { CURRENT_USER_ID, PARTICIPATIONS, POTS } from '@/lib/mock-data'
+import type { Message, Participation, Place, Pot, PotStatus, ZoneCode } from '@/lib/types'
 
 function delay<T>(data: T, ms = 300): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(data), ms))
@@ -122,22 +108,21 @@ export async function getMyApplications(): Promise<
   return delay(joined)
 }
 
-/** 내 채팅방 목록 */
-export async function getMyRooms(): Promise<ChatRoom[]> {
-  // TODO: replace with real API call — GET /api/rooms (Phase 4)
-  return delay(CHAT_ROOMS)
+/** 채팅 메시지 증분 조회(폴링) — GET /api/rooms/:id/messages?after= */
+export async function getMessages(roomId: string, afterId = 0): Promise<Message[]> {
+  const res = await fetch(`/api/rooms/${roomId}/messages?after=${afterId}`)
+  return parseJsonResponse<Message[]>(res)
 }
 
-/** 채팅방 단건 */
-export async function getRoom(roomId: string): Promise<ChatRoom | undefined> {
-  // TODO: replace with real API call — GET /api/rooms/:id (Phase 4)
-  return delay(CHAT_ROOMS.find((r) => r.id === roomId))
-}
-
-/** 채팅 메시지 목록 */
-export async function getMessages(roomId: string): Promise<Message[]> {
-  // TODO: replace with real API call — GET /api/rooms/:id/messages?after=lastId (Phase 4)
-  return delay(MESSAGES[roomId] ?? [])
+/** 메시지 전송 — POST /api/rooms/:id/messages */
+export async function sendMessage(roomId: string, content: string): Promise<Message> {
+  const res = await fetch(`/api/rooms/${roomId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  })
+  const data = await parseJsonResponse<{ message: Message }>(res)
+  return data.message
 }
 
 /** 장소 검색 — GET /api/places/search?q=, 카카오 로컬 API 서버 프록시 */

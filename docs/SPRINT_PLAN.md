@@ -18,7 +18,7 @@
 | 1 | 계정 (AUTH) | ✅ 완료 (로그아웃 버튼 UI는 Phase 5로 이관) |
 | 2 | 공동주문 핵심 (ORDER) | ✅ 완료 (모집글 수정 화면만 별도 보류) |
 | 3 | 카카오 장소 검색 (ORDER-09) | ✅ 완료 |
-| 4 | 채팅 (CHAT) | ☐ 시작 전 (화면 stub만 존재) |
+| 4 | 채팅 (CHAT) | ✅ 완료 |
 | 5 | 마이페이지 (MY) | ☐ 시작 전 (화면 stub만 존재) |
 | 6 | P1 선택 기능 | ☐ 시작 전 |
 | 7 | 프로덕션 검증 & 완료 기준 | ☐ 시작 전 |
@@ -115,17 +115,19 @@
 
 목표: 현재 `TabPlaceholder`로 남아있는 채팅 탭을 실제 폴링 채팅으로 구현. `mukmate-chat-polling` 스킬 참고.
 
-- [ ] `app/api/rooms` — GET(내 채팅방 목록 + 커뮤니티 고정방) 구현
-- [ ] `app/api/rooms/:id/messages` — GET(`after` 커서 기반 증분 조회), POST(메시지 전송) 구현
-- [ ] 모든 메시지 API에서 **서버측 참여자 검사** (ORDER 방은 host+APPROVED만, COMMUNITY 방은 로그인만) — CHAT-01, URL 직접 접근 시도까지 막아야 함
-- [ ] `app/(main)/chat/page.tsx` 실제 구현 — 내 채팅 / 커뮤니티 탭 분리, `TabPlaceholder` 제거
-- [ ] **신규 화면 #9 — 주문 채팅방** (`app/(main)/chat/[id]/page.tsx`) 제작 — 상단에 가게명·수령장소·수령시각 고정 표시 (CHAT-07)
-- [ ] 폴링 로직 구현 (2~3초 간격, `messages.id` 커서 기반 증분 조회) — 화면 이탈 시 폴링 중단
-- [ ] **신규 화면 #10/#11 — 커뮤니티 목록/채팅방** 제작 (일정 빠듯하면 PRD §15에 따라 가장 먼저 잘라낼 후보)
-- [ ] 메시지에 닉네임+작성시각 표시, `login_id` 노출되지 않는지 확인 (CHAT-03)
-- [ ] SYSTEM 타입 메시지(예: "모집이 마감되었습니다") 표시 지원
+- [x] `app/api/rooms` — GET(내 채팅방 목록 + 커뮤니티 고정방) 구현. ORDER 방은 host도 자동 APPROVED 참여자라 별도 분기 없이 하나의 JOIN 조건으로 커버됨(Phase 2 설계가 여기서도 그대로 재사용됨)
+- [x] `app/api/rooms/:id/messages` — GET(`after` 커서 기반 증분 조회), POST(메시지 전송) 구현
+- [x] 모든 메시지 API에서 **서버측 참여자 검사** (ORDER 방은 host+APPROVED만, COMMUNITY 방은 로그인만) — CHAT-01. `lib/server-data.ts`의 `getRoomForViewer()`가 페이지(404)와 API(403) 양쪽에서 공유됨
+- [x] `app/(main)/chat/page.tsx` 실제 구현 — `TabPlaceholder` 제거, "내 채팅"/"음식 커뮤니티" 탭 분리(PRD §5-2 원문 그대로: "채팅 탭은 내 채팅과 음식 커뮤니티로 구분한다")
+- [x] **신규 화면 #9 — 주문 채팅방** (`app/(main)/chat/[id]/page.tsx` + `chat-room-view.tsx`) 제작 — 상단에 가게명·수령장소·수령시각 고정 표시 (CHAT-07)
+- [x] 폴링 로직 구현 (2.5초 간격, `messages.id` 커서 기반 증분 조회) — 컴포넌트 언마운트(화면 이탈) 시 `clearInterval`로 정리, 추가로 탭이 백그라운드일 땐(`document.hidden`) 폴링 tick에서 fetch를 건너뛰어 불필요한 호출을 줄임
+- [x] **화면 #10/#11 — 커뮤니티 목록/채팅방**: 별도 화면으로 분리하지 않고 §5-2/§11-2 설계 메모대로 목록은 "채팅" 탭의 서브탭으로, 채팅방은 주문 채팅과 **같은** `/chat/[id]` 라우트·컴포넌트를 재사용(하나의 `chat_rooms` 테이블로 통합한 원래 설계 의도)
+- [x] 메시지에 닉네임+작성시각 표시, `login_id` 미노출 확인 (CHAT-03) — E2E로 응답 바디에 `login_id` 문자열이 전혀 없는 것까지 확인
+- [x] SYSTEM 타입 메시지 지원 — 렌더링(중앙 정렬, 말풍선 없음)뿐 아니라 실제 이벤트에도 연동: 참여 승인 시(`PATCH /api/applications/:id`) "{닉네임}님이 참여했습니다.", 모집 상태 변경 시(`PATCH /api/pots/:id`) "모집이 마감되었습니다."/"주문이 완료되었습니다."/"공동주문이 취소되었습니다." 자동 삽입
+- [x] **부수 작업**: Phase 2에서 놓쳤던 부분 발견 — 모집글 생성 시 그 주문의 `chat_rooms` 행 자체가 없었음(채팅 스키마는 Phase 0부터 있었지만 아무도 row를 안 만들고 있었음). `POST /api/pots`에서 호스트 참여자 등록 직후 ORDER 채팅방을 함께 생성하도록 추가 — `chat_rooms.pot_id`가 UNIQUE라 나중에 지연 생성하면 동시 요청 경쟁 문제가 생길 수 있어 모집글 생성과 원자적으로 묶음
+- [x] mock 정리: `lib/mock-data.ts`의 `CHAT_ROOMS`/`MESSAGES`, `lib/api.ts`의 `getMyRooms`/`getRoom`(더 이상 안 쓰임 — 서버 컴포넌트는 `lib/server-data.ts`의 `listRoomsForUser`/`getRoomForViewer`를 직접 호출) 삭제
 
-**완료 기준**: 승인된 사용자만 주문 채팅방에 들어갈 수 있고, 거절/미신청 계정은 URL을 직접 입력해도 403. 다른 사용자가 보낸 메시지가 새로고침 없이(폴링으로) 화면에 나타난다. (§13-1, §13-3 관련 항목)
+**완료 기준**: 승인된 사용자만 주문 채팅방에 들어갈 수 있고, 거절/미신청 계정은 URL을 직접 입력해도 403. 다른 사용자가 보낸 메시지가 새로고침 없이(폴링으로) 화면에 나타난다. (§13-1, §13-3 관련 항목) → **호스트/참여자(PENDING→APPROVED)/제3자 3개 계정으로 E2E 검증 완료**: 제3자·미승인 신청자 403(API)/404(페이지), 승인 후 200 전환, 호스트가 보낸 메시지를 참여자가 폴링으로 수신(`isMine=false` 정확히 계산), SYSTEM 메시지 자동 삽입, 커뮤니티 방은 전원 접근 가능 — 전부 확인.
 
 ---
 

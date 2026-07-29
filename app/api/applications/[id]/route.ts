@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db'
-import { participations, pots } from '@/lib/db/schema'
+import { chatRooms, messages, participations, pots, users } from '@/lib/db/schema'
 import { getSessionUserOrNull } from '@/lib/server-data'
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -21,9 +21,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const db = getDb()
   const [row] = await db
-    .select({ hostId: pots.hostId, approvalStatus: participations.approvalStatus })
+    .select({
+      hostId: pots.hostId,
+      potId: pots.id,
+      approvalStatus: participations.approvalStatus,
+      applicantNickname: users.nickname,
+    })
     .from(participations)
     .innerJoin(pots, eq(participations.potId, pots.id))
+    .innerJoin(users, eq(participations.userId, users.id))
     .where(eq(participations.id, id))
     .limit(1)
 
@@ -43,6 +49,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .set({ approvalStatus: nextStatus })
     .where(eq(participations.id, id))
     .returning()
+
+  if (action === 'APPROVE') {
+    const [room] = await db
+      .select({ id: chatRooms.id })
+      .from(chatRooms)
+      .where(eq(chatRooms.potId, row.potId))
+      .limit(1)
+    if (room) {
+      await db.insert(messages).values({
+        roomId: room.id,
+        senderId: null,
+        type: 'SYSTEM',
+        content: `${row.applicantNickname}님이 참여했습니다.`,
+      })
+    }
+  }
 
   return NextResponse.json({
     participation: {

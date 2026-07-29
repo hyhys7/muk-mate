@@ -85,6 +85,20 @@ export interface Message {
   isMine: boolean
 }
 
+/** 채팅방 접근 권한 검사 결과 — lib/server-data.ts의 getRoomForViewer가 반환하는 모양 */
+export interface RoomAccess {
+  id: string
+  type: RoomType
+  title: string
+  pot?: {
+    id: string
+    storeName: string
+    pickupName: string
+    pickupAt: string
+    status: PotStatus
+  }
+}
+
 export interface Place {
   id: string
   name: string

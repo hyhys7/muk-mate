@@ -1,10 +1,4 @@
-import type {
-  ChatRoom,
-  Message,
-  Participation,
-  Pot,
-  User,
-} from '@/lib/types'
+import type { Participation, Pot, User } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────
 // 시간 헬퍼: 현재 시각 기준 상대 ISO 문자열 생성 (상대 표기가 항상 자연스럽게 보이도록)
@@ -309,94 +303,8 @@ export const PARTICIPATIONS: Participation[] = [
   },
 ]
 
-// ─────────────────────────────────────────────────────────────
-// 채팅방 — 주문방 1 + 커뮤니티 고정방 2
-// ─────────────────────────────────────────────────────────────
-export const CHAT_ROOMS: ChatRoom[] = [
-  {
-    id: 'r1',
-    type: 'ORDER',
-    potId: 'p1',
-    title: '깐부치킨 전북대점',
-    subtitle: '진수관 1층 로비 · 오늘 픽업',
-    potStatus: 'OPEN',
-    lastMessage: '저 거의 다 왔어요! 5분 후 도착',
-    lastMessageAt: mins(-2),
-    unreadCount: 2,
-  },
-  {
-    id: 'r2',
-    type: 'ORDER',
-    potId: 'p5',
-    title: '엽기떡볶이 전북대점',
-    subtitle: '학군단 앞 · 곧 픽업',
-    potStatus: 'CLOSED',
-    lastMessage: '입금 확인했습니다 감사해요',
-    lastMessageAt: mins(-45),
-    unreadCount: 0,
-  },
-  {
-    id: 'c1',
-    type: 'COMMUNITY',
-    potId: null,
-    title: '오늘 뭐 먹지 · 맛집 추천',
-    subtitle: '전북대 근처 맛집을 공유하는 방',
-    memberCount: 428,
-    lastMessage: '구정문 새로 생긴 마라탕집 진짜 맛있어요',
-    lastMessageAt: mins(-8),
-    unreadCount: 5,
-  },
-  {
-    id: 'c2',
-    type: 'COMMUNITY',
-    potId: null,
-    title: '같이 먹어요 · 음식 여행',
-    subtitle: '같이 먹을 사람을 찾는 방',
-    memberCount: 261,
-    lastMessage: '이번 주말 전주 한옥마을 먹방 가실 분?',
-    lastMessageAt: mins(-33),
-    unreadCount: 0,
-  },
-]
-
-// ─────────────────────────────────────────────────────────────
-// 메시지 — 방마다 10개 내외
-// ─────────────────────────────────────────────────────────────
-export const MESSAGES: Record<string, Message[]> = {
-  r1: [
-    { id: 'm1', roomId: 'r1', senderId: 'sys', senderNickname: '', type: 'SYSTEM', content: '냠냠박사님이 참여했습니다.', createdAt: mins(-38), isMine: false },
-    { id: 'm2', roomId: 'r1', senderId: 'u2', senderNickname: '진수성찬', type: 'TEXT', content: '안녕하세요! 깐부치킨 공동주문 방입니다 🍗', createdAt: mins(-37), isMine: false },
-    { id: 'm3', roomId: 'r1', senderId: 'u2', senderNickname: '진수성찬', type: 'TEXT', content: '후라이드 양념 반반으로 시킬게요', createdAt: mins(-36), isMine: false },
-    { id: 'm4', roomId: 'r1', senderId: 'u1', senderNickname: '배고픈북극곰', type: 'TEXT', content: '넵 좋아요! 저는 뼈없는거 찬성입니다', createdAt: mins(-35), isMine: true },
-    { id: 'm5', roomId: 'r1', senderId: 'u3', senderNickname: '냠냠박사', type: 'TEXT', content: '콜라 1.25L 하나 추가할게요', createdAt: mins(-30), isMine: false },
-    { id: 'm6', roomId: 'r1', senderId: 'u2', senderNickname: '진수성찬', type: 'TEXT', content: '지금 주문 넣었습니다! 총 34,000원이고 배달비 4천이라 인당 나누면 계산해서 알려드릴게요', createdAt: mins(-20), isMine: false },
-    { id: 'm7', roomId: 'r1', senderId: 'u1', senderNickname: '배고픈북극곰', type: 'TEXT', content: '넵 계좌 알려주시면 바로 보낼게요', createdAt: mins(-18), isMine: true },
-    { id: 'm8', roomId: 'r1', senderId: 'u2', senderNickname: '진수성찬', type: 'TEXT', content: '카카오뱅크 3333-01-xxxxxxx 진수성찬입니다', createdAt: mins(-17), isMine: false },
-    { id: 'm9', roomId: 'r1', senderId: 'u3', senderNickname: '냠냠박사', type: 'TEXT', content: '입금 완료했어요~', createdAt: mins(-10), isMine: false },
-    { id: 'm10', roomId: 'r1', senderId: 'u2', senderNickname: '진수성찬', type: 'TEXT', content: '저 거의 다 왔어요! 5분 후 도착', createdAt: mins(-2), isMine: false },
-  ],
-  r2: [
-    { id: 'm21', roomId: 'r2', senderId: 'sys', senderNickname: '', type: 'SYSTEM', content: '주문이 마감되었습니다.', createdAt: mins(-60), isMine: false },
-    { id: 'm22', roomId: 'r2', senderId: 'u5', senderNickname: '치킨은진리', type: 'TEXT', content: '엽떡 착한맛으로 주문했어요!', createdAt: mins(-55), isMine: false },
-    { id: 'm23', roomId: 'r2', senderId: 'u1', senderNickname: '배고픈북극곰', type: 'TEXT', content: '오뎅국물 많이 부탁드려요 ㅋㅋ', createdAt: mins(-52), isMine: true },
-    { id: 'm24', roomId: 'r2', senderId: 'u5', senderNickname: '치킨은진리', type: 'TEXT', content: '인당 5천원씩입니다~', createdAt: mins(-50), isMine: false },
-    { id: 'm25', roomId: 'r2', senderId: 'u1', senderNickname: '배고픈북극곰', type: 'TEXT', content: '방금 보냈어요', createdAt: mins(-47), isMine: true },
-    { id: 'm26', roomId: 'r2', senderId: 'u5', senderNickname: '치킨은진리', type: 'TEXT', content: '입금 확인했습니다 감사해요', createdAt: mins(-45), isMine: false },
-  ],
-  c1: [
-    { id: 'mc1', roomId: 'c1', senderId: 'u6', senderNickname: '마라마라해', type: 'TEXT', content: '구정문 새로 생긴 마라탕집 진짜 맛있어요', createdAt: mins(-8), isMine: false },
-    { id: 'mc2', roomId: 'c1', senderId: 'u3', senderNickname: '냠냠박사', type: 'TEXT', content: '오 어디에요? 이름 알려주세요', createdAt: mins(-7), isMine: false },
-    { id: 'mc3', roomId: 'c1', senderId: 'u6', senderNickname: '마라마라해', type: 'TEXT', content: '탕화쿵푸요! 꿔바로우도 겉바속촉이에요', createdAt: mins(-6), isMine: false },
-    { id: 'mc4', roomId: 'c1', senderId: 'u1', senderNickname: '배고픈북극곰', type: 'TEXT', content: '오늘 저녁 거기로 공동주문 파볼까 ㅎㅎ', createdAt: mins(-5), isMine: true },
-    { id: 'mc5', roomId: 'c1', senderId: 'u4', senderNickname: '야식요정', type: 'TEXT', content: '저요 저요 마라탕 콜', createdAt: mins(-4), isMine: false },
-  ],
-  c2: [
-    { id: 'mc11', roomId: 'c2', senderId: 'u4', senderNickname: '야식요정', type: 'TEXT', content: '이번 주말 전주 한옥마을 먹방 가실 분?', createdAt: mins(-33), isMine: false },
-    { id: 'mc12', roomId: 'c2', senderId: 'u2', senderNickname: '진수성찬', type: 'TEXT', content: '가고 싶어요! 비빔밥이랑 콩나물국밥 먹으러 ㄱㄱ', createdAt: mins(-30), isMine: false },
-    { id: 'mc13', roomId: 'c2', senderId: 'u1', senderNickname: '배고픈북극곰', type: 'TEXT', content: '토요일 점심 어때요?', createdAt: mins(-28), isMine: true },
-    { id: 'mc14', roomId: 'c2', senderId: 'u4', senderNickname: '야식요정', type: 'TEXT', content: '좋아요 토요일 12시 남부시장 앞에서 모여요', createdAt: mins(-25), isMine: false },
-  ],
-}
+// 채팅방/메시지는 Phase 4부터 실제 DB(chat_rooms/messages)를 쓴다 — 여기 있던
+// CHAT_ROOMS/MESSAGES mock은 제거함. 커뮤니티 고정방 2개는 scripts/seed.ts로 시드한다.
 
 // 장소 검색은 Phase 3부터 카카오 로컬 API를 실시간으로 호출한다 (app/api/places/search) —
 // 목 데이터로 흉내낼 필요가 없어져서 여기 있던 PLACES/FREQUENT_PICKUP_PLACES/RECENT_PLACE_KEYWORDS는 제거함.

@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db'
-import { pots } from '@/lib/db/schema'
+import { chatRooms, messages, pots } from '@/lib/db/schema'
 import { computeEffectiveStatus, getPotById, getSessionUserOrNull } from '@/lib/server-data'
 import type { PotStatus } from '@/lib/types'
 
@@ -13,6 +13,12 @@ const ALLOWED_TRANSITIONS: Record<PotStatus, PotStatus[]> = {
   CLOSED: ['ORDERED', 'CANCELED'],
   ORDERED: [],
   CANCELED: [],
+}
+
+const STATUS_SYSTEM_MESSAGE: Partial<Record<PotStatus, string>> = {
+  CLOSED: '모집이 마감되었습니다.',
+  ORDERED: '주문이 완료되었습니다.',
+  CANCELED: '공동주문이 취소되었습니다.',
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -61,6 +67,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   await db.update(pots).set({ status: nextStatus }).where(eq(pots.id, id))
+
+  const systemMessage = STATUS_SYSTEM_MESSAGE[nextStatus]
+  if (systemMessage) {
+    const [room] = await db.select({ id: chatRooms.id }).from(chatRooms).where(eq(chatRooms.potId, id)).limit(1)
+    if (room) {
+      await db.insert(messages).values({ roomId: room.id, senderId: null, type: 'SYSTEM', content: systemMessage })
+    }
+  }
 
   const pot = await getPotById(id)
   return NextResponse.json({ pot })

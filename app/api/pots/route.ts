@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db'
-import { participations, pots } from '@/lib/db/schema'
+import { chatRooms, participations, pots } from '@/lib/db/schema'
 import { getPotById, getSessionUserOrNull, listPots } from '@/lib/server-data'
 
 const STORE_NAME_MAX = 60
@@ -119,6 +119,15 @@ export async function POST(request: Request) {
     potId: created.id,
     userId: me.id,
     approvalStatus: 'APPROVED',
+  })
+
+  // 주문 채팅방은 모집글과 함께 바로 생성한다 — 호스트가 즉시 승인 상태이므로
+  // 채팅방을 쓸 수 있어야 하고, chat_rooms.pot_id가 UNIQUE라 나중에 지연 생성하면
+  // 동시성 문제(둘 이상이 동시에 처음 만들려는 경쟁)가 생길 수 있다.
+  await db.insert(chatRooms).values({
+    type: 'ORDER',
+    potId: created.id,
+    title: storeName,
   })
 
   const pot = await getPotById(created.id)
