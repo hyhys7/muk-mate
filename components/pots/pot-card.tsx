@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { PotStatusBadge } from '@/components/status-badge'
 import { StoreAvatar } from '@/components/store-avatar'
+import { getFoodEmoji } from '@/lib/food-emoji'
 import { formatDeadline, formatDistance, formatWon } from '@/lib/format'
 import type { Pot, PotStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -21,6 +22,7 @@ export function PotCard({ pot, index }: { pot: Pot; index?: number }) {
   const amount = pot.currentAmount ?? 0
   const progress = isAmount ? (amount / pot.targetValue) * 100 : 0
   const showUrgentRibbon = pot.status === 'OPEN' && deadline.urgent
+  const foodEmoji = getFoodEmoji(pot.orderSummary, pot.storeName)
 
   return (
     <Link href={`/pots/${pot.id}`} className="block transition active:scale-[0.99]">
@@ -45,7 +47,7 @@ export function PotCard({ pot, index }: { pot: Pot; index?: number }) {
 
         <div className="flex gap-3">
           <div className="relative shrink-0">
-            <StoreAvatar name={pot.storeName} className="size-16 text-xl" />
+            <StoreAvatar name={pot.storeName} emoji={foodEmoji} className="size-16 text-2xl" />
             {index !== undefined && (
               <span className="absolute -bottom-1.5 -left-1.5 flex size-6 items-center justify-center rounded-lg bg-foreground text-[11px] font-extrabold tabular-nums text-background shadow-sm">
                 {String(index).padStart(2, '0')}

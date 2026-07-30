@@ -6,6 +6,7 @@ import { Clock, MapPin, MessageCircle, Search, Users, Utensils } from 'lucide-re
 import { AppHeader } from '@/components/app-header'
 import { PotStatusBadge } from '@/components/status-badge'
 import { StoreAvatar } from '@/components/store-avatar'
+import { getFoodEmoji } from '@/lib/food-emoji'
 import { buttonVariants } from '@/components/ui/button'
 import { formatRelativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -17,7 +18,11 @@ function RoomRow({ room }: { room: ChatRoom }) {
       href={`/chat/${room.id}`}
       className="flex items-center gap-3 px-4 py-3.5 transition active:scale-[0.99] hover:bg-muted/60 bg-card"
     >
-      <StoreAvatar name={room.title} className="size-12 text-lg shrink-0" />
+      <StoreAvatar
+        name={room.title}
+        emoji={getFoodEmoji(room.title)}
+        className="size-12 text-xl shrink-0"
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <p className="truncate text-sm font-bold text-foreground">{room.title}</p>

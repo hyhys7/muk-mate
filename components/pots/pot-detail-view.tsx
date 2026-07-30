@@ -12,6 +12,7 @@ import { StoreAvatar } from '@/components/store-avatar'
 import { Progress } from '@/components/ui/progress'
 import { cancelJoinPot, decideMemberApplication, deletePot, requestJoinPot, updatePotStatus } from '@/lib/api'
 import { zoneLabel } from '@/lib/constants'
+import { getFoodEmoji } from '@/lib/food-emoji'
 import {
   formatDateTime,
   formatDeadline,
@@ -158,7 +159,11 @@ export function PotDetailView({
 
       {/* 가게/상태 */}
       <section className="flex items-start gap-3 px-4 py-4">
-        <StoreAvatar name={pot.storeName} className="size-14 text-xl" />
+        <StoreAvatar
+          name={pot.storeName}
+          emoji={getFoodEmoji(pot.orderSummary, pot.storeName)}
+          className="size-14 text-2xl"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <PotStatusBadge status={pot.status} />

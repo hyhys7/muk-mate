@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react'
 import { NotificationBell } from '@/components/notification-bell'
 import { PotCard } from '@/components/pots/pot-card'
 import { StoreAvatar } from '@/components/store-avatar'
+import { getFoodEmoji } from '@/lib/food-emoji'
 import { EmptyState } from '@/components/empty-state'
 import { Button } from '@/components/ui/button'
 import { ZONES } from '@/lib/constants'
@@ -162,7 +163,11 @@ export function PotsView({ pots, initialZone }: { pots: Pot[]; initialZone: Zone
             >
               <span className="rounded-full bg-gradient-to-tr from-primary to-[#FF9D4D] p-[2px] transition active:scale-[0.95]">
                 <span className="block rounded-full border-2 border-background">
-                  <StoreAvatar name={p.storeName} className="size-14 text-lg" />
+                  <StoreAvatar
+                    name={p.storeName}
+                    emoji={getFoodEmoji(p.orderSummary, p.storeName)}
+                    className="size-14 text-2xl"
+                  />
                 </span>
               </span>
               <span className="line-clamp-2 text-center text-[11px] leading-tight text-muted-foreground">
