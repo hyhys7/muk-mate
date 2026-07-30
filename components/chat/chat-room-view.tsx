@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   AlertCircle,
@@ -45,10 +45,13 @@ export function ChatRoomView({
   room,
   initialMessages,
   initialReads = [],
+  initialReadCursor = null,
 }: {
   room: RoomAccess
   initialMessages: Message[]
   initialReads?: RoomReadEntry[]
+  /** 이번 방문 이전까지 읽은 마지막 메시지 id. null이면 첫 방문(복원할 지점 없음). */
+  initialReadCursor?: number | null
 }) {
   const router = useRouter()
   const [messages, setMessages] = useState<Message[]>(initialMessages)
@@ -75,6 +78,8 @@ export function ChatRoomView({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const didInitialScrollRef = useRef(false)
   const lastIdRef = useRef<number>(
     initialMessages.length > 0 ? Number(initialMessages[initialMessages.length - 1].id) : 0,
   )
@@ -120,8 +125,26 @@ export function ChatRoomView({
     return () => clearInterval(interval)
   }, [room.id, isScrolledUp])
 
-  // 새 메시지 수신 시 스크롤 제어
+  // 최초 진입 시 1회: 마지막으로 읽은 지점으로 스크롤 복원 (없으면 맨 아래).
+  // useLayoutEffect로 페인트 전에 위치를 잡아야 "맨 위가 잠깐 보였다가 아래로 튀는" 깜빡임이 없다.
+  useLayoutEffect(() => {
+    if (initialReadCursor !== null) {
+      const firstUnread = initialMessages.find((m) => Number(m.id) > initialReadCursor)
+      const el = firstUnread ? messageRefs.current.get(firstUnread.id) : null
+      if (el) {
+        el.scrollIntoView({ block: 'start' })
+        didInitialScrollRef.current = true
+        return
+      }
+    }
+    bottomRef.current?.scrollIntoView({ block: 'end' })
+    didInitialScrollRef.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 새 메시지 수신 시 스크롤 제어 (최초 진입 스크롤 복원과 겹치지 않도록 그 이후에만 동작)
   useEffect(() => {
+    if (!didInitialScrollRef.current) return
     if (!isScrolledUp) {
       bottomRef.current?.scrollIntoView({ block: 'end' })
     }
@@ -293,7 +316,7 @@ export function ChatRoomView({
 
           if (m.type === 'SYSTEM') {
             return (
-              <div key={m.id}>
+              <div key={m.id} ref={(el) => { if (el) messageRefs.current.set(m.id, el) }}>
                 {showDivider && <DateDivider iso={m.createdAt} />}
                 <p className="my-2.5 text-center text-xs font-semibold text-muted-foreground/80 bg-muted/30 py-1 px-3 rounded-full mx-auto w-fit">
                   {m.content}
@@ -306,7 +329,7 @@ export function ChatRoomView({
           const unreadCount = room.type === 'ORDER' ? unreadCountFor(m, reads) : 0
 
           return (
-            <div key={m.id}>
+            <div key={m.id} ref={(el) => { if (el) messageRefs.current.set(m.id, el) }}>
               {showDivider && <DateDivider iso={m.createdAt} />}
               <div className={cn('flex flex-col gap-0.5', m.isMine ? 'items-end' : 'items-start')}>
                 {showNickname && (

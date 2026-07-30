@@ -625,6 +625,21 @@ export async function getMessagesForRoom(
   }))
 }
 
+/**
+ * 읽음 표시(v2.5): 이번 방문 이전까지의 읽음 커서 — 화면 진입 시 "마지막으로 읽은 지점"으로
+ * 스크롤을 복원하는 용도이므로, 반드시 markRoomRead()로 커서를 갱신하기 **전에** 호출해야 한다.
+ * 커서 행이 아예 없으면(첫 방문) null — 이 경우 복원할 지점이 없으므로 호출부가 맨 아래로 보낸다.
+ */
+export async function getMyReadCursor(roomId: string, userId: string): Promise<number | null> {
+  const db = getDb()
+  const [row] = await db
+    .select({ lastReadMessageId: roomReads.lastReadMessageId })
+    .from(roomReads)
+    .where(and(eq(roomReads.roomId, roomId), eq(roomReads.userId, userId)))
+    .limit(1)
+  return row ? row.lastReadMessageId : null
+}
+
 /** 읽음 표시(v2.5): viewer가 이 방을 보고 있다는 뜻이므로 현재까지의 마지막 메시지로 읽음 커서를 올린다. */
 export async function markRoomRead(roomId: string, viewerId: string): Promise<void> {
   const db = getDb()
