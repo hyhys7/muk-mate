@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft, Clock, MapPin, Share2, ShieldCheck, Truck, Users } from 'lucide-react'
+import { ArrowLeft, Check, Clock, MapPin, Share2, ShieldCheck, Trash2, Truck, Users } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
@@ -10,7 +10,7 @@ import { PendingRequest, RequestList } from '@/components/pots/request-list'
 import { ApprovalBadge, PotStatusBadge } from '@/components/status-badge'
 import { StoreAvatar } from '@/components/store-avatar'
 import { Progress } from '@/components/ui/progress'
-import { cancelJoinPot, decideMemberApplication, requestJoinPot, updatePotStatus } from '@/lib/api'
+import { cancelJoinPot, decideMemberApplication, deletePot, requestJoinPot, updatePotStatus } from '@/lib/api'
 import { zoneLabel } from '@/lib/constants'
 import {
   formatDateTime,
@@ -40,6 +40,8 @@ export function PotDetailView({
   const [requests, setRequests] = useState<PendingRequest[]>(initialRequests)
   const [showConfirmSheet, setShowConfirmSheet] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [shared, setShared] = useState(false)
 
   const deadline = formatDeadline(pot.deadlineAt)
   const isAmount = pot.targetType === 'AMOUNT'
@@ -99,6 +101,38 @@ export function PotDetailView({
     }
   }
 
+  async function handleDelete() {
+    if (!confirm('모집글을 삭제하시겠습니까? 삭제하면 되돌릴 수 없어요.')) return
+    setDeleting(true)
+    try {
+      await deletePot(pot.id)
+      router.push('/pots')
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '삭제에 실패했어요.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  async function handleShare() {
+    const url = window.location.href
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `${pot.storeName} 공동주문`, url })
+      } catch {
+        // 사용자가 공유 시트를 취소한 경우 등 — 무시
+      }
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+      setShared(true)
+      setTimeout(() => setShared(false), 2000)
+    } catch {
+      alert('링크 복사에 실패했어요.')
+    }
+  }
+
   return (
     <div className="flex flex-1 flex-col pb-28">
       {/* 헤더 */}
@@ -114,10 +148,11 @@ export function PotDetailView({
         <span className="text-base font-bold text-foreground">공동주문 상세</span>
         <button
           type="button"
+          onClick={handleShare}
           aria-label="공유"
           className="flex size-11 items-center justify-center rounded-full text-foreground transition active:scale-[0.95] hover:bg-muted"
         >
-          <Share2 className="size-5" />
+          {shared ? <Check className="size-5 text-status-ordered" /> : <Share2 className="size-5" />}
         </button>
       </header>
 
@@ -278,6 +313,18 @@ export function PotDetailView({
             </li>
           )}
         </ul>
+
+        {isHost && participations.length === 0 && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="mt-4 flex h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-destructive/30 text-sm font-semibold text-destructive transition active:scale-[0.98] hover:bg-destructive/5 disabled:opacity-60"
+          >
+            <Trash2 className="size-4" />
+            {deleting ? '삭제 중...' : '모집글 삭제'}
+          </button>
+        )}
       </section>
 
       {/* 하단 고정 CTA */}

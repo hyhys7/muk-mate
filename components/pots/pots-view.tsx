@@ -26,6 +26,8 @@ export function PotsView({ pots, initialZone }: { pots: Pot[]; initialZone: Zone
   const [zone, setZone] = useState<ZoneCode>(initialZone)
   const [zoneOpen, setZoneOpen] = useState(false)
   const [filter, setFilter] = useState<Filter>('ALL')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [query, setQuery] = useState('')
 
   const zoneLabelText = ZONES.find((z) => z.code === zone)?.label ?? '전체'
 
@@ -42,8 +44,15 @@ export function PotsView({ pots, initialZone }: { pots: Pot[]; initialZone: Zone
     if (filter === 'URGENT')
       list = list.filter((p) => p.status === 'OPEN' && formatDeadline(p.deadlineAt).urgent)
     if (filter === 'NEAR') list.sort((a, b) => a.distanceMeters - b.distanceMeters)
+
+    const q = query.trim().toLowerCase()
+    if (q) {
+      list = list.filter(
+        (p) => p.storeName.toLowerCase().includes(q) || p.orderSummary.toLowerCase().includes(q),
+      )
+    }
     return list
-  }, [zonePots, filter])
+  }, [zonePots, filter, query])
 
   return (
     <>
@@ -86,14 +95,38 @@ export function PotsView({ pots, initialZone }: { pots: Pot[]; initialZone: Zone
         <div className="flex items-center gap-1">
           <button
             type="button"
+            onClick={() => {
+              setSearchOpen((v) => !v)
+              if (searchOpen) setQuery('')
+            }}
             aria-label="검색"
-            className="flex size-11 items-center justify-center rounded-full text-foreground transition active:scale-[0.95] hover:bg-muted"
+            aria-pressed={searchOpen}
+            className={cn(
+              'flex size-11 items-center justify-center rounded-full text-foreground transition active:scale-[0.95] hover:bg-muted',
+              searchOpen && 'bg-muted',
+            )}
           >
             <Search className="size-5" />
           </button>
           <NotificationBell />
         </div>
       </header>
+
+      {searchOpen && (
+        <div className="border-b border-border bg-background px-4 py-2.5">
+          <div className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2">
+            <Search className="size-4 shrink-0 text-muted-foreground" />
+            <input
+              type="text"
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="가게 이름이나 메뉴로 검색"
+              className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-1 flex-col pb-24">
         {/* 스토리형 요약 */}
@@ -149,6 +182,12 @@ export function PotsView({ pots, initialZone }: { pots: Pot[]; initialZone: Zone
               <PotCard key={pot.id} pot={pot} />
             ))}
           </div>
+        ) : query.trim() ? (
+          <EmptyState
+            icon={Search}
+            title="검색 결과가 없어요"
+            description="다른 가게 이름이나 메뉴로 찾아보세요."
+          />
         ) : (
           <EmptyState
             icon={ShoppingBag}

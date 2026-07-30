@@ -56,6 +56,14 @@ export async function updatePotStatus(potId: string, status: PotStatus): Promise
   return data.pot
 }
 
+/** 모집글 삭제 — DELETE /api/pots/:id, 모집자 전용 · 참여자가 없을 때만 가능 */
+export async function deletePot(potId: string): Promise<void> {
+  const res = await fetch(`/api/pots/${potId}`, {
+    method: 'DELETE',
+  })
+  await parseJsonResponse<{ ok: boolean }>(res)
+}
+
 /** 참여 신청 — POST /api/pots/:id/join */
 export async function requestJoinPot(potId: string, menuMemo?: string): Promise<Participation> {
   const res = await fetch(`/api/pots/${potId}/join`, {

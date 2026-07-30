@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, count, eq, inArray } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db'
@@ -125,4 +125,35 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const pot = await getPotById(id)
   return NextResponse.json({ pot })
+}
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const me = await getSessionUserOrNull()
+  if (!me) {
+    return NextResponse.json({ code: 'UNAUTHORIZED', error: '로그인이 필요합니다.' }, { status: 401 })
+  }
+
+  const { id } = await params
+  const db = getDb()
+
+  const [row] = await db.select({ hostId: pots.hostId }).from(pots).where(eq(pots.id, id)).limit(1)
+  if (!row) {
+    return NextResponse.json({ code: 'POT_NOT_FOUND', error: '존재하지 않는 모집글입니다.' }, { status: 404 })
+  }
+  if (row.hostId !== me.id) {
+    return NextResponse.json({ code: 'FORBIDDEN', error: '모집자만 삭제할 수 있습니다.' }, { status: 403 })
+  }
+
+  // 참여 신청(대기중 포함) 1건이라도 있으면 삭제 불가
+  const [{ cnt }] = await db.select({ cnt: count() }).from(participations).where(eq(participations.potId, id))
+  if (cnt > 0) {
+    return NextResponse.json(
+      { code: 'HAS_PARTICIPANTS', error: '참여 신청이 있는 모집글은 삭제할 수 없습니다.' },
+      { status: 409 },
+    )
+  }
+
+  await db.delete(pots).where(eq(pots.id, id))
+
+  return NextResponse.json({ ok: true })
 }
