@@ -5,8 +5,8 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | **v2.4** (v2.3에서 모집글 삭제·공유·검색 기능 신설 및 계정 제재 범위 확장을 반영) |
-| 작성일 | 2026-07-28 (v2.1 갱신: 2026-07-29 / v2.2 갱신: 2026-07-30 / v2.3 갱신: 2026-07-30 / v2.4 갱신: 2026-07-30) |
+| 문서 버전 | **v2.5** (v2.4에서 주문 채팅방 읽음 표시 기능 신설을 반영) |
+| 작성일 | 2026-07-28 (v2.1 갱신: 2026-07-29 / v2.2 갱신: 2026-07-30 / v2.3 갱신: 2026-07-30 / v2.4 갱신: 2026-07-30 / v2.5 갱신: 2026-07-30) |
 | 기준 문서 | 팀 v1.2 + 기술 검토본 v1.1 통합 |
 | 제품 형태 | 모바일 우선 반응형 웹 MVP |
 | 기술 스택 | Next.js · Neon DB(PostgreSQL) · Vercel · 카카오 로컬 API |
@@ -72,6 +72,15 @@
 | 공유하기 | 버튼 UI만 있고 `onClick` 없음 | **`navigator.share()` 우선, 미지원 시 클립보드 복사 폴백** (ORDER-14). 이 과정에서 로그인 페이지가 `?next=` 파라미터를 무시해 공유링크로 들어온 게스트가 로그인 후 원래 글로 못 돌아오던 버그도 같이 수정 |
 | 모집글 검색 | 버튼 UI만 있고 기능 없음 | **현재 권역(zone) 내 가게명·메뉴 키워드로 클라이언트 사이드 필터링** (ORDER-15) |
 | 계정 제재 적용 범위 | v2.3에서 로그인·참여·작성까지 확장했으나 §17-4에만 기록되고 §8-1(AUTH) 요구사항표엔 없었음 | **AUTH-08로 정식 등재** — 정지·비활성 계정은 로그인 자체가 불가하고, 이미 로그인된 세션이라도 참여 신청·모집글 작성이 즉시 차단된다 |
+
+### 0-5. v2.4 → v2.5 달라진 점
+
+카카오톡처럼 채팅 상대가 메시지를 읽었는지 확인하고 싶다는 요청으로 읽음 표시를 신설했다. 참여자 개념이 있는 **주문 채팅방(ORDER)에만 적용**하고, 참여자 개념이 없는 커뮤니티 채팅방(COMMUNITY)은 대상에서 제외했다.
+
+| 쟁점 | v2.4 | **v2.5 결정** |
+|---|---|---|
+| 채팅 읽음 표시 | 없음 | **주문 채팅방 한정으로 신설(CHAT-09).** `room_reads` 테이블에 참여자별 마지막으로 읽은 메시지 id만 저장하고, 메시지별 안읽은 인원수는 서버가 미리 계산하지 않는다 — 폴링이 `after=lastId` 증분 조회라서, 예전 메시지의 배지 값이 시간이 지나도 안 바뀌는 문제를 피하려고 매 폴링마다 참여자 전원의 읽음 커서 스냅샷을 통째로 내려주고 클라이언트가 화면에 있는 메시지 전부를 다시 계산한다(카카오톡 그룹채팅과 동일한 방식) |
+| 메시지 조회 API 응답 형태 | `Message[]` 배열 그대로 | **`{ messages, reads }`로 변경** — 하위 호환 없이 클라이언트(`lib/api.ts`, `chat-room-view.tsx`)도 함께 갱신 |
 
 ---
 
@@ -439,6 +448,7 @@ MVP에서는 **운영자가 정한 고정 채팅방만** 제공하며, 사용자
 | CHAT-06 | 같은 채팅방의 새 메시지가 화면에 갱신되어 대화를 이어갈 수 있다 | P0 |
 | CHAT-07 | 주문 채팅방 상단에 가게명·수령 장소·수령 시각이 고정 표시된다 | P0 |
 | CHAT-08 | 사용자는 채팅방에서 메시지·사용자를 신고할 수 있다 (v2.2 추가, 17-3 참고) | P0 |
+| CHAT-09 | 주문 채팅방에서 참여자가 내 메시지를 읽었는지 확인할 수 있다 (카카오톡 그룹채팅 방식 안읽음 인원수, v2.5 추가). 참여자 개념이 없는 커뮤니티 채팅방은 대상 아님 | P1 |
 
 ### 8-4. 마이페이지
 
@@ -650,6 +660,20 @@ CREATE TABLE messages (
 );
 CREATE INDEX idx_messages_room ON messages (room_id, id);
 
+-- v2.5: 읽음 표시(CHAT-09). ORDER 방 한정 — COMMUNITY는 참여자 개념이 없어 대상 아님.
+-- 참여자별 "마지막으로 읽은 메시지 id"만 저장하고, 메시지별 안읽은 인원수는 서버가 미리 계산해
+-- 내려주지 않는다 — 폴링이 증분(after=lastId) 조회라 예전 메시지의 배지가 갱신 안 되는 문제를 피하려고,
+-- 매 폴링마다 참여자 전원의 읽음 커서 스냅샷을 통째로 내려주고 클라이언트가 화면에 있는 메시지 전부에 대해
+-- 다시 계산한다.
+CREATE TABLE room_reads (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  room_id               uuid NOT NULL REFERENCES chat_rooms(id) ON DELETE CASCADE,
+  user_id               uuid NOT NULL REFERENCES users(id),
+  last_read_message_id  bigint NOT NULL DEFAULT 0,
+  updated_at            timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (room_id, user_id)
+);
+
 -- v2.2: 신고 (CHAT-08)
 CREATE TABLE reports (
   id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -699,7 +723,7 @@ CREATE INDEX idx_reports_status_created ON reports (status, created_at);
 | PATCH | `/api/pots/:id/members/:userId` | 승인 / 거절 — `userId` 기준 (v2.2, FEAT-06) | **모집자만** |
 | GET | `/api/places/search?q=` | 카카오 로컬 API(키워드 장소 검색) 프록시 | 로그인 |
 | GET | `/api/rooms` | 내 채팅방 목록 + 커뮤니티 고정방 | 로그인 |
-| GET | `/api/rooms/:id/messages?after=` | 증분 메시지 조회 (폴링) | **참여자만** |
+| GET | `/api/rooms/:id/messages?after=` | 증분 메시지 조회 (폴링). 응답이 `{ messages, reads }` — ORDER 방이면 `reads`에 참여자별 읽음 커서 스냅샷 포함, 호출 자체가 "읽음" 처리(v2.5) | **참여자만** |
 | POST | `/api/rooms/:id/messages` | 메시지 전송 | **참여자만** |
 | POST | `/api/reports` | 메시지 / 사용자 신고 접수 (v2.2, CHAT-08) | 로그인 |
 | PATCH | `/api/admin/reports/:id` | 신고 상태·메모 변경 (v2.3, 17-4) | **관리자만** |
