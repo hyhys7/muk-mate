@@ -178,8 +178,11 @@ export function PotsView({ pots, initialZone }: { pots: Pot[]; initialZone: Zone
         {/* 카드 리스트 */}
         {visiblePots.length > 0 ? (
           <div className="flex flex-col gap-3 p-4">
-            {visiblePots.map((pot) => (
-              <PotCard key={pot.id} pot={pot} />
+            <h2 className="-mb-1 text-lg font-extrabold tracking-tight text-foreground">
+              같이 먹을 사람이 기다리고 있어요
+            </h2>
+            {visiblePots.map((pot, idx) => (
+              <PotCard key={pot.id} pot={pot} index={idx + 1} />
             ))}
           </div>
         ) : query.trim() ? (

@@ -1,34 +1,57 @@
 import Link from 'next/link'
-import { MapPin, ShieldCheck } from 'lucide-react'
+import { Flame, MapPin, ShieldCheck } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { PotStatusBadge } from '@/components/status-badge'
 import { formatDeadline, formatDistance, formatWon } from '@/lib/format'
-import type { Pot } from '@/lib/types'
+import type { Pot, PotStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-export function PotCard({ pot }: { pot: Pot }) {
+const ACCENT_BORDER: Record<PotStatus, string> = {
+  OPEN: 'border-l-primary',
+  CLOSED: 'border-l-status-closed',
+  ORDERED: 'border-l-status-ordered',
+  CANCELED: 'border-l-status-canceled',
+}
+
+export function PotCard({ pot, index }: { pot: Pot; index?: number }) {
   const deadline = formatDeadline(pot.deadlineAt)
   const isAmount = pot.targetType === 'AMOUNT'
   const amount = pot.currentAmount ?? 0
   const progress = isAmount ? (amount / pot.targetValue) * 100 : 0
+  const showUrgentRibbon = pot.status === 'OPEN' && deadline.urgent
 
   return (
     <Link href={`/pots/${pot.id}`} className="block transition active:scale-[0.99]">
-      <Card className="relative p-4">
-        {/* 위치확인 배지 (우측 상단) */}
-        {pot.isLocationVerified && (
-          <span className="absolute right-3 top-3 inline-flex h-6 items-center gap-1 rounded-full bg-status-ordered/12 px-2 text-xs font-semibold text-status-ordered">
-            <ShieldCheck className="size-3.5" />
-            위치확인
-          </span>
+      <Card className={cn('relative border-l-4 p-4', ACCENT_BORDER[pot.status])}>
+        {/* 위치확인 / 마감임박 배지 (우측 상단, 세로로 쌓임) */}
+        {(pot.isLocationVerified || showUrgentRibbon) && (
+          <div className="absolute right-3 top-3 flex flex-col items-end gap-1">
+            {showUrgentRibbon && (
+              <span className="inline-flex h-6 items-center gap-1 rounded-full bg-destructive px-2 text-xs font-bold text-destructive-foreground shadow-sm">
+                <Flame className="size-3.5" />
+                마감임박
+              </span>
+            )}
+            {pot.isLocationVerified && (
+              <span className="inline-flex h-6 items-center gap-1 rounded-full bg-status-ordered/12 px-2 text-xs font-semibold text-status-ordered">
+                <ShieldCheck className="size-3.5" />
+                위치확인
+              </span>
+            )}
+          </div>
         )}
 
-        <div className="flex items-start gap-2">
+        <div className="flex items-center gap-1.5">
+          {index !== undefined && (
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-foreground text-[11px] font-extrabold tabular-nums text-background">
+              {String(index).padStart(2, '0')}
+            </span>
+          )}
           <PotStatusBadge status={pot.status} />
         </div>
 
-        <h3 className="mt-2 pr-16 text-base font-bold text-foreground">{pot.storeName}</h3>
+        <h3 className="mt-2 pr-20 text-base font-extrabold text-foreground">{pot.storeName}</h3>
         <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">{pot.orderSummary}</p>
 
         <div className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
