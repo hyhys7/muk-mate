@@ -26,9 +26,9 @@ function LoginForm() {
 
     setSubmitting(false)
     if (result?.error) {
-      if (result.error === 'ACCOUNT_SUSPENDED') {
+      if (result.code === 'ACCOUNT_SUSPENDED') {
         setError('정지된 계정입니다. 문의를 통해 확인해 주세요.')
-      } else if (result.error === 'ACCOUNT_DISABLED') {
+      } else if (result.code === 'ACCOUNT_DISABLED') {
         setError('비활성화된 계정입니다. 문의를 통해 확인해 주세요.')
       } else {
         setError('아이디 또는 비밀번호가 올바르지 않습니다.')
