@@ -130,6 +130,16 @@ export async function changePassword(input: { currentPassword: string; newPasswo
   await parseJsonResponse<{ ok: true }>(res)
 }
 
+/** 회원 탈퇴(소프트) — DELETE /api/me, 현재 비밀번호 확인 후 계정 비활성화 */
+export async function withdrawAccount(currentPassword: string): Promise<void> {
+  const res = await fetch('/api/me', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword }),
+  })
+  await parseJsonResponse<{ ok: true }>(res)
+}
+
 /** 채팅 메시지 증분 조회(폴링) — GET /api/rooms/:id/messages?after= */
 export async function getMessages(
   roomId: string,

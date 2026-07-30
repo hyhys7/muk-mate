@@ -7,6 +7,7 @@ import { auth } from '@/auth'
 import { getDb } from '@/lib/db'
 import { chatRooms, messages, notifications, participations, pots, roomReads, users } from '@/lib/db/schema'
 import { formatDateTime } from '@/lib/format'
+import { createNotificationBulk } from '@/lib/notifications'
 import { resolveViewerState } from '@/lib/pots/viewer-state'
 import type {
   AppNotification,
@@ -193,6 +194,66 @@ export async function getPotById(id: string, viewerId?: string | null): Promise<
   })
 
   return pot
+}
+
+/**
+ * 모집글을 취소 처리 — 채팅방 시스템 메시지 + 활성 참여자(PENDING/APPROVED) 알림까지 함께 처리한다.
+ * 방장이 직접 취소할 때(PATCH /api/pots/:id)와 회원 탈퇴로 자동 취소될 때 양쪽에서 재사용한다.
+ */
+export async function cancelPotAndNotify(potId: string, storeName: string, excludeUserId: string): Promise<void> {
+  const db = getDb()
+
+  await db.update(pots).set({ status: 'CANCELED' }).where(eq(pots.id, potId))
+
+  const [room] = await db.select({ id: chatRooms.id }).from(chatRooms).where(eq(chatRooms.potId, potId)).limit(1)
+  if (room) {
+    await db
+      .insert(messages)
+      .values({ roomId: room.id, senderId: null, type: 'SYSTEM', content: '공동주문이 취소되었습니다.' })
+  }
+
+  const activeMembers = await db
+    .select({ userId: participations.userId })
+    .from(participations)
+    .where(and(eq(participations.potId, potId), inArray(participations.approvalStatus, ['PENDING', 'APPROVED'])))
+
+  const recipients = activeMembers.map((m) => m.userId).filter((uid) => uid !== excludeUserId)
+  await createNotificationBulk(
+    db,
+    recipients.map((uid) => ({
+      recipientId: uid,
+      type: 'POT_CANCELED',
+      potId,
+      title: '공동주문이 취소되었어요',
+      body: `${storeName} 공동주문이 취소되었습니다.`,
+      actionPath: `/pots/${potId}`,
+      dedupeKey: `POT_CANCELED:${potId}:${uid}`,
+    })),
+  )
+}
+
+/**
+ * 회원 탈퇴(소프트) — 완전 삭제하지 않는다. 다른 사용자가 보던 채팅 기록·참여 이력이
+ * FK로 얽혀 있어 하드 삭제하면 그 사람들 화면이 깨지기 때문에, account_status를
+ * DISABLED로 바꿔 로그인·참여·작성·채팅 전 경로를 막고(v2.3 확장분 재사용) 닉네임만
+ * 익명화한다. 호스트로 있는 모집중(OPEN/CLOSED) 모집글은 자동 취소해 참여자들에게 알린다.
+ */
+export async function withdrawUser(userId: string): Promise<void> {
+  const db = getDb()
+
+  const hostedPots = await db
+    .select({ id: pots.id, status: pots.status, deadlineAt: pots.deadlineAt, storeName: pots.storeName })
+    .from(pots)
+    .where(eq(pots.hostId, userId))
+
+  for (const p of hostedPots) {
+    const effective = computeEffectiveStatus(p.status, p.deadlineAt)
+    if (effective === 'OPEN' || effective === 'CLOSED') {
+      await cancelPotAndNotify(p.id, p.storeName, userId)
+    }
+  }
+
+  await db.update(users).set({ accountStatus: 'DISABLED', nickname: '탈퇴한 사용자' }).where(eq(users.id, userId))
 }
 
 async function getPotsByIds(ids: string[]): Promise<Map<string, Pot>> {

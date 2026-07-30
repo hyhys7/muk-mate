@@ -2,13 +2,13 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { useSession } from 'next-auth/react'
+import { signOut, useSession } from 'next-auth/react'
 import { MapPin } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ZONES } from '@/lib/constants'
-import { changePassword, updateProfile } from '@/lib/api'
+import { changePassword, updateProfile, withdrawAccount } from '@/lib/api'
 import type { ZoneCode } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +29,10 @@ export function EditProfileView({ me }: { me: { nickname: string; zoneCode: Zone
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [passwordSaved, setPasswordSaved] = useState(false)
 
+  const [withdrawPassword, setWithdrawPassword] = useState('')
+  const [withdrawSaving, setWithdrawSaving] = useState(false)
+  const [withdrawError, setWithdrawError] = useState<string | null>(null)
+
   const passwordMismatch = newPasswordConfirm.length > 0 && newPassword !== newPasswordConfirm
 
   async function handleProfileSubmit(e: React.FormEvent) {
@@ -47,6 +51,27 @@ export function EditProfileView({ me }: { me: { nickname: string; zoneCode: Zone
       setProfileError(err instanceof Error ? err.message : '저장에 실패했어요.')
     } finally {
       setProfileSaving(false)
+    }
+  }
+
+  async function handleWithdraw(e: React.FormEvent) {
+    e.preventDefault()
+    if (!withdrawPassword) return
+    if (
+      !confirm(
+        '정말 탈퇴하시겠습니까?\n\n로그인이 불가능해지고, 호스트 중인 모집중인 주문은 자동으로 취소되어 참여자에게 알림이 갑니다. 기존 채팅 기록·참여 이력은 다른 사용자를 위해 남아있지만 닉네임은 "탈퇴한 사용자"로 표시됩니다.',
+      )
+    ) {
+      return
+    }
+    setWithdrawSaving(true)
+    setWithdrawError(null)
+    try {
+      await withdrawAccount(withdrawPassword)
+      await signOut({ callbackUrl: '/login' })
+    } catch (err) {
+      setWithdrawError(err instanceof Error ? err.message : '탈퇴에 실패했어요.')
+      setWithdrawSaving(false)
     }
   }
 
@@ -171,6 +196,39 @@ export function EditProfileView({ me }: { me: { nickname: string; zoneCode: Zone
             className="h-11 w-full rounded-xl font-bold"
           >
             {passwordSaving ? '변경하는 중...' : '비밀번호 변경'}
+          </Button>
+        </form>
+
+        <form
+          onSubmit={handleWithdraw}
+          className="flex flex-col gap-3 rounded-2xl border border-destructive/30 bg-card p-4 shadow-sm"
+        >
+          <h2 className="font-bold text-destructive">회원 탈퇴</h2>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            탈퇴하면 로그인이 불가능해져요. 호스트 중인 모집중인 주문은 자동으로 취소되어 참여자에게
+            알림이 가고, 기존 채팅 기록·참여 이력은 다른 사용자를 위해 남지만 닉네임은 "탈퇴한
+            사용자"로 표시돼요.
+          </p>
+
+          {withdrawError && <p className="text-sm text-destructive">{withdrawError}</p>}
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-muted-foreground">현재 비밀번호</label>
+            <Input
+              type="password"
+              value={withdrawPassword}
+              onChange={(e) => setWithdrawPassword(e.target.value)}
+              className="h-11 rounded-xl"
+            />
+          </div>
+
+          <Button
+            type="submit"
+            variant="destructive"
+            disabled={withdrawSaving || !withdrawPassword}
+            className="h-11 w-full rounded-xl font-bold"
+          >
+            {withdrawSaving ? '탈퇴 처리 중...' : '회원 탈퇴'}
           </Button>
         </form>
       </div>
