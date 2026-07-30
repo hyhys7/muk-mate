@@ -2,9 +2,12 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search } from 'lucide-react'
+import { Search, Users } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { EmptyState } from '@/components/empty-state'
+import { StoreAvatar } from '@/components/store-avatar'
 import { updateUserAccountStatus } from '@/lib/api'
 import { zoneLabel } from '@/lib/constants'
 import { formatDateTime } from '@/lib/format'
@@ -60,7 +63,7 @@ export function AdminUsersView({
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+      <div className="flex items-center gap-2 border-b border-border bg-background px-4 py-3">
         <Search className="size-4 shrink-0 text-muted-foreground" />
         <input
           type="text"
@@ -90,13 +93,12 @@ export function AdminUsersView({
       </div>
 
       {visible.length === 0 ? (
-        <p className="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
-          해당하는 회원이 없어요.
-        </p>
+        <EmptyState icon={Users} title="해당하는 회원이 없어요" description="다른 검색어나 필터를 선택해보세요." />
       ) : (
-        <ul className="flex flex-col divide-y divide-border">
+        <div className="flex flex-col gap-3 p-4">
           {visible.map((u) => (
-            <li key={u.id} className="flex items-center gap-3 px-4 py-3">
+            <Card key={u.id} className="flex items-center gap-3 p-3.5">
+              <StoreAvatar name={u.nickname} className="size-11 shrink-0 text-base" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span
@@ -149,9 +151,9 @@ export function AdminUsersView({
                   )}
                 </div>
               )}
-            </li>
+            </Card>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   )

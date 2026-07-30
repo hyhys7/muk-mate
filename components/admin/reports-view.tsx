@@ -2,9 +2,12 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { ChevronDown, Inbox } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
+import { EmptyState } from '@/components/empty-state'
 import { updateReportStatus, updateUserAccountStatus } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
 import type { AdminReportItem } from '@/lib/admin/data'
@@ -49,7 +52,7 @@ export function ReportsView({ reports }: { reports: AdminReportItem[] }) {
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="scrollbar-none flex gap-2 overflow-x-auto border-b border-border px-4 py-3">
+      <div className="scrollbar-none flex gap-2 overflow-x-auto border-b border-border bg-background px-4 py-3">
         {FILTERS.map((f) => (
           <button
             key={f.key}
@@ -68,11 +71,9 @@ export function ReportsView({ reports }: { reports: AdminReportItem[] }) {
       </div>
 
       {visible.length === 0 ? (
-        <p className="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
-          해당하는 신고가 없어요.
-        </p>
+        <EmptyState icon={Inbox} title="해당하는 신고가 없어요" description="다른 상태 필터를 선택해보세요." />
       ) : (
-        <ul className="flex flex-col divide-y divide-border">
+        <div className="flex flex-col gap-3 p-4">
           {visible.map((r) => (
             <ReportRow
               key={r.id}
@@ -82,7 +83,7 @@ export function ReportsView({ reports }: { reports: AdminReportItem[] }) {
               onChanged={() => router.refresh()}
             />
           ))}
-        </ul>
+        </div>
       )}
     </div>
   )
@@ -146,8 +147,12 @@ function ReportRow({
   const isDisabled = report.reportedUser?.accountStatus === 'DISABLED'
 
   return (
-    <li className="flex flex-col gap-2 px-4 py-3">
-      <button type="button" onClick={onToggle} className="flex items-center justify-between gap-2 text-left">
+    <Card className={cn('overflow-hidden transition', report.status === 'PENDING' && 'border-destructive/30')}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-2 p-4 text-left transition hover:bg-muted/40"
+      >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span
@@ -173,10 +178,11 @@ function ReportRow({
             {formatDateTime(report.createdAt)}
           </p>
         </div>
+        <ChevronDown className={cn('size-4 shrink-0 text-muted-foreground transition', expanded && 'rotate-180')} />
       </button>
 
       {expanded && (
-        <div className="flex flex-col gap-3 rounded-xl bg-muted/50 p-3">
+        <div className="flex flex-col gap-3 border-t border-border bg-muted/30 p-4">
           {report.detail && <p className="text-sm text-foreground">{report.detail}</p>}
           {report.messageContentSnapshot && (
             <div className="rounded-lg border border-border bg-background p-2.5">
@@ -215,6 +221,6 @@ function ReportRow({
           </div>
         </div>
       )}
-    </li>
+    </Card>
   )
 }

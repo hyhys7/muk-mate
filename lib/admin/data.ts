@@ -1,9 +1,9 @@
 import 'server-only'
 
-import { desc, inArray, sql } from 'drizzle-orm'
+import { count, desc, eq, inArray, sql } from 'drizzle-orm'
 
 import { getDb } from '@/lib/db'
-import { reports, users } from '@/lib/db/schema'
+import { pots, reports, users } from '@/lib/db/schema'
 import type { AccountStatus, ReportReason, ReportStatus, UserRole, ZoneCode } from '@/lib/types'
 
 export interface AdminReportItem {
@@ -104,4 +104,28 @@ export async function getUsersForAdmin(): Promise<AdminUserItem[]> {
     accountStatus: r.accountStatus as AccountStatus,
     createdAt: r.createdAt.toISOString(),
   }))
+}
+
+export interface AdminDashboardStats {
+  pendingReportsCount: number
+  totalUsersCount: number
+  suspendedUsersCount: number
+  totalPotsCount: number
+  openPotsCount: number
+}
+
+/** 관리자 랜딩 대시보드용 요약 카운트 */
+export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
+  const db = getDb()
+
+  const [[{ cnt: pendingReportsCount }], [{ cnt: totalUsersCount }], [{ cnt: suspendedUsersCount }], [{ cnt: totalPotsCount }], [{ cnt: openPotsCount }]] =
+    await Promise.all([
+      db.select({ cnt: count() }).from(reports).where(eq(reports.status, 'PENDING')),
+      db.select({ cnt: count() }).from(users),
+      db.select({ cnt: count() }).from(users).where(eq(users.accountStatus, 'SUSPENDED')),
+      db.select({ cnt: count() }).from(pots),
+      db.select({ cnt: count() }).from(pots).where(eq(pots.status, 'OPEN')),
+    ])
+
+  return { pendingReportsCount, totalUsersCount, suspendedUsersCount, totalPotsCount, openPotsCount }
 }

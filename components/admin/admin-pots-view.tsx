@@ -2,10 +2,13 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search } from 'lucide-react'
+import { Search, ShoppingBag } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { EmptyState } from '@/components/empty-state'
 import { PotStatusBadge } from '@/components/status-badge'
+import { StoreAvatar } from '@/components/store-avatar'
 import { adminDeletePot } from '@/lib/api'
 import { zoneLabel } from '@/lib/constants'
 import { formatDateTime } from '@/lib/format'
@@ -42,7 +45,7 @@ export function AdminPotsView({ pots }: { pots: Pot[] }) {
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+      <div className="flex items-center gap-2 border-b border-border bg-background px-4 py-3">
         <Search className="size-4 shrink-0 text-muted-foreground" />
         <input
           type="text"
@@ -54,13 +57,12 @@ export function AdminPotsView({ pots }: { pots: Pot[] }) {
       </div>
 
       {visible.length === 0 ? (
-        <p className="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
-          해당하는 모집글이 없어요.
-        </p>
+        <EmptyState icon={ShoppingBag} title="해당하는 모집글이 없어요" description="다른 검색어로 찾아보세요." />
       ) : (
-        <ul className="flex flex-col divide-y divide-border">
+        <div className="flex flex-col gap-3 p-4">
           {visible.map((pot) => (
-            <li key={pot.id} className="flex items-center gap-3 px-4 py-3">
+            <Card key={pot.id} className="flex items-center gap-3 p-3.5">
+              <StoreAvatar name={pot.storeName} className="size-11 shrink-0 text-base" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <PotStatusBadge status={pot.status} />
@@ -79,9 +81,9 @@ export function AdminPotsView({ pots }: { pots: Pot[] }) {
               >
                 삭제
               </Button>
-            </li>
+            </Card>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   )
