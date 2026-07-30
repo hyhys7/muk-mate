@@ -3,6 +3,7 @@ import { Flame, MapPin, ShieldCheck } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { PotStatusBadge } from '@/components/status-badge'
+import { StoreAvatar } from '@/components/store-avatar'
 import { formatDeadline, formatDistance, formatWon } from '@/lib/format'
 import type { Pot, PotStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -42,23 +43,28 @@ export function PotCard({ pot, index }: { pot: Pot; index?: number }) {
           </div>
         )}
 
-        <div className="flex items-center gap-1.5">
-          {index !== undefined && (
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-foreground text-[11px] font-extrabold tabular-nums text-background">
-              {String(index).padStart(2, '0')}
-            </span>
-          )}
-          <PotStatusBadge status={pot.status} />
-        </div>
+        <div className="flex gap-3">
+          <div className="relative shrink-0">
+            <StoreAvatar name={pot.storeName} className="size-16 text-xl" />
+            {index !== undefined && (
+              <span className="absolute -bottom-1.5 -left-1.5 flex size-6 items-center justify-center rounded-lg bg-foreground text-[11px] font-extrabold tabular-nums text-background shadow-sm">
+                {String(index).padStart(2, '0')}
+              </span>
+            )}
+          </div>
 
-        <h3 className="mt-2 pr-20 text-base font-extrabold text-foreground">{pot.storeName}</h3>
-        <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">{pot.orderSummary}</p>
+          <div className="min-w-0 flex-1">
+            <PotStatusBadge status={pot.status} />
+            <h3 className="mt-1 pr-16 text-base font-extrabold text-foreground">{pot.storeName}</h3>
+            <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">{pot.orderSummary}</p>
 
-        <div className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
-          <MapPin className="size-4 shrink-0" />
-          <span className="line-clamp-1">{pot.pickupName}</span>
-          <span className="text-muted-foreground/60">·</span>
-          <span className="shrink-0">{formatDistance(pot.distanceMeters)}</span>
+            <div className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
+              <MapPin className="size-4 shrink-0" />
+              <span className="line-clamp-1">{pot.pickupName}</span>
+              <span className="text-muted-foreground/60">·</span>
+              <span className="shrink-0">{formatDistance(pot.distanceMeters)}</span>
+            </div>
+          </div>
         </div>
 
         <div className="mt-3 flex items-end justify-between gap-3">

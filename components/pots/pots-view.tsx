@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Check, ChevronDown, Plus, Search, ShoppingBag } from 'lucide-react'
+import { Check, ChevronDown, MapPinned, MessageCircle, Plus, Search, ShieldCheck, ShoppingBag, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { NotificationBell } from '@/components/notification-bell'
 import { PotCard } from '@/components/pots/pot-card'
@@ -129,6 +129,22 @@ export function PotsView({ pots, initialZone }: { pots: Pot[]; initialZone: Zone
       )}
 
       <div className="flex flex-1 flex-col pb-24">
+        {/* 히어로 배너 */}
+        <div className="mx-4 mt-4 overflow-hidden rounded-3xl bg-foreground px-5 py-6 text-background shadow-lg">
+          <span className="inline-flex items-center rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground">
+            오늘 {zoneLabelText}에서
+          </span>
+          <h1 className="mt-3 text-2xl font-extrabold leading-tight text-background text-balance">
+            같이 먹을 사람이
+            <br />
+            <span className="text-primary">기다리고 있어요</span>
+          </h1>
+          <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-background/10 px-3 py-1.5 text-xs font-semibold text-background/80">
+            <Users className="size-3.5" />
+            지금 <span className="font-extrabold text-background">{openStories.length}개</span>의 식탁이 모집 중이에요
+          </div>
+        </div>
+
         {/* 스토리형 요약 */}
         <div className="scrollbar-none flex gap-3 overflow-x-auto px-4 py-4">
           <Link href="/pots/new" className="flex w-16 shrink-0 flex-col items-center gap-1.5">
@@ -156,6 +172,11 @@ export function PotsView({ pots, initialZone }: { pots: Pot[]; initialZone: Zone
           ))}
         </div>
 
+        {/* 섹션 제목 */}
+        <h2 className="px-4 pb-3 pt-1 text-lg font-extrabold tracking-tight text-foreground">
+          오늘 열린 식탁
+        </h2>
+
         {/* 필터 칩 */}
         <div className="scrollbar-none flex gap-2 overflow-x-auto border-b border-border px-4 pb-3">
           {FILTERS.map((f) => (
@@ -178,9 +199,6 @@ export function PotsView({ pots, initialZone }: { pots: Pot[]; initialZone: Zone
         {/* 카드 리스트 */}
         {visiblePots.length > 0 ? (
           <div className="flex flex-col gap-3 p-4">
-            <h2 className="-mb-1 text-lg font-extrabold tracking-tight text-foreground">
-              같이 먹을 사람이 기다리고 있어요
-            </h2>
             {visiblePots.map((pot, idx) => (
               <PotCard key={pot.id} pot={pot} index={idx + 1} />
             ))}
@@ -208,6 +226,30 @@ export function PotsView({ pots, initialZone }: { pots: Pot[]; initialZone: Zone
             }
           />
         )}
+
+        {/* 기능 소개 스트립 */}
+        <div className="mx-4 mb-4 mt-6 grid grid-cols-2 gap-x-4 gap-y-4 rounded-2xl border border-border bg-muted/30 p-4">
+          <FeatureItem
+            icon={Users}
+            title="가까운 식탁 빠르게 발견"
+            description={`${zoneLabelText} 주변 식탁을 한눈에`}
+          />
+          <FeatureItem
+            icon={ShieldCheck}
+            title="안전하고 편리한 모임"
+            description="메시지·사용자 신고 기능으로 안심"
+          />
+          <FeatureItem
+            icon={MessageCircle}
+            title="참여자끼리 바로 대화"
+            description="채팅으로 시간·장소를 조율해요"
+          />
+          <FeatureItem
+            icon={MapPinned}
+            title="지도로 위치 확인"
+            description="수령 장소를 지도에서 미리 봐요"
+          />
+        </div>
       </div>
 
       {/* FAB — 프레임 오른쪽 하단에 고정 */}
@@ -223,5 +265,27 @@ export function PotsView({ pots, initialZone }: { pots: Pot[]; initialZone: Zone
         </div>
       </div>
     </>
+  )
+}
+
+function FeatureItem({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: typeof Users
+  title: string
+  description: string
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
+        <Icon className="size-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs font-bold text-foreground">{title}</p>
+        <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{description}</p>
+      </div>
+    </div>
   )
 }
