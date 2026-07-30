@@ -6,14 +6,14 @@
 
 **목표**: `/admin` 접근 자체가 관리자만 되도록 만들고, 회원 정지가 채팅뿐 아니라 로그인·참여·작성 전체에 실제로 먹히게 한다. 이 스프린트가 끝나도 신고 목록 같은 실제 관리 기능은 아직 없다 — 다음 스프린트의 지반 공사.
 
-- [ ] `lib/db/schema.ts`: `user_role` enum(`USER`/`ADMIN`) 추가, `users.role` 컬럼(기본 `USER`) 추가
-- [ ] `drizzle-kit generate` → `db:push`로 Neon에 반영
-- [ ] `auth.ts`: 로그인 성공 조건에 `accountStatus === 'ACTIVE'` 검사 추가(정지/비활성 계정은 로그인 자체를 막음), JWT/세션에 `role` 포함
-- [ ] `app/api/pots/route.ts`(POST), `app/api/pots/[id]/join/route.ts`(POST): `accountStatus !== 'ACTIVE'`면 403 반환
-- [ ] `lib/admin/auth.ts`: `getAdminOrNull()` — 세션 + `role === 'ADMIN'` 검사, 관리자 라우트/레이아웃 공용
-- [ ] `app/admin/layout.tsx`: 비로그인 → `/login`, 비관리자 → `/pots` 리다이렉트. 하단 네비 없는 별도 셸
-- [ ] `app/admin/page.tsx`: 임시 랜딩(다음 스프린트에서 신고함/모집글 관리 링크로 채움)
-- [ ] 검증: 비로그인 상태 `/admin` 접근 시 `/login`으로, 일반 계정 로그인 후 `/admin` 접근 시 `/pots`로 리다이렉트되는지 curl/직접 확인. DB에서 role을 `ADMIN`으로 바꾼 테스트 계정으로는 `/admin` 진입 성공 확인. 정지 계정 로그인 차단 확인.
+- [x] `lib/db/schema.ts`: `user_role` enum(`USER`/`ADMIN`) 추가, `users.role` 컬럼(기본 `USER`) 추가
+- [x] `drizzle-kit generate` → `db:push`로 Neon에 반영 (겸사겸사 오래 남아있던 고아 컬럼 `participations.decided_at`/`decided_by`도 이번에 실제로 제거됨 — 값은 전부 NULL이었음)
+- [x] `auth.ts`: 로그인 성공 조건에 `accountStatus === 'ACTIVE'` 검사 추가, `CredentialsSignin` 서브클래스로 `ACCOUNT_SUSPENDED`/`ACCOUNT_DISABLED` 구체 에러 코드 노출, JWT/세션에 `role` 포함
+- [x] `app/api/pots/route.ts`(POST), `app/api/pots/[id]/join/route.ts`(POST): `accountStatus !== 'ACTIVE'`면 403 반환 — JWT가 아니라 매 요청 DB 재조회라 이미 로그인된 세션도 즉시 차단됨
+- [x] `lib/admin/auth.ts`: `getAdminOrNull()`/`requireAdmin()` — 세션 + `role === 'ADMIN'` 검사, 관리자 라우트/레이아웃 공용
+- [x] `app/admin/layout.tsx`: 비로그인 → `/login`, 비관리자 → `/pots` 리다이렉트. 하단 네비 없는 별도 셸
+- [x] `app/admin/page.tsx`: 임시 랜딩(다음 스프린트에서 신고함/모집글 관리 링크로 채움)
+- [x] **검증 완료 (2026-07-30, 프로덕션)**: 비로그인 `/admin` → `/login`(307), 일반 계정 → `/pots`(307), `role=ADMIN` 계정 → 200 + 실제 랜딩 콘텐츠 확인. 정지 계정은 로그인 자체가 차단(세션 `null`, 에러 코드 `ACCOUNT_SUSPENDED` 정상 노출)되고, **이미 로그인된 세션 상태에서 DB로 정지 처리해도** 참여 신청(403 `ACCOUNT_RESTRICTED`)·모집글 작성(403)이 즉시 막히는 것까지 실제 계정으로 재현 확인. 테스트 계정·데이터는 검증 후 정리함.
 
 ## Sprint 2 — 신고 처리 (신고함)
 
