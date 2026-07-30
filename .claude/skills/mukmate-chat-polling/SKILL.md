@@ -31,3 +31,11 @@ Vercel serverless functions can't hold long-lived sockets. The PRD has already d
 MVP ships exactly 2 operator-created fixed rooms — users cannot create new public rooms:
 1. 오늘 뭐 먹지 · 맛집 추천
 2. 같이 먹어요 · 음식 여행
+
+## Reporting (CHAT-08, §17-3 — shipped in v2.2)
+
+`POST /api/reports` lets a logged-in user report a message or user from within a chat room (`report-modal.tsx` in `chat-room-view.tsx`). Requirements when touching this:
+- Verify room access via `getRoomForViewer()` before accepting a report tied to a `roomId` — same permission check as reading/sending messages.
+- Block self-reports and duplicate reports of the same message (`UNIQUE(reporter_id, message_id)`).
+- Snapshot the reported message's content/timestamp into the report row — the original message can be edited/deleted later and the report should still show what was actually said.
+- There is **no admin review UI or API yet** — reports sit at `status = 'PENDING'` forever. Don't assume `reviewed_at`/`admin_note`/`account_status` get set anywhere; if you need moderation actions to actually take effect, that flow doesn't exist and needs to be built.

@@ -22,6 +22,7 @@
 | 5 | 마이페이지 (MY) | ✅ 완료 |
 | 6 | P1 선택 기능 | ☐ 시작 전 (P0 완결 후 필요 시) |
 | 7 | 프로덕션 검증 & 완료 기준 | ✅ 완료 |
+| 7+ | (계획 외) 신고 기능, 참여/승인 플로우 재구현(FEAT-06) | ✅ 완료 + 중복 코드 정리 완료 (2026-07-30, 신고 관리자 화면은 미착수) |
 
 *(마지막 업데이트: 이 표는 Phase가 바뀔 때마다 함께 갱신한다.)*
 
@@ -165,3 +166,37 @@
 - [x] 한 사용자가 메시지를 보내면 다른 사용자 화면에 새로고침 없이 나타나는지 폴링 증분 조회 시스템 검증 완료
 
 **완료 기준**: PRD §13 전체 체크 완료 = MVP 최종 완료. → **Phase 7 완료.**
+
+---
+
+## Phase 7 이후 — 추가 구현 (Phase 표에는 없던 작업)
+
+Phase 7 "완료" 커밋(`0e89673`~`9f38fa4` 이전 이력) 이후에도 커밋이 2건 더 들어갔다. 둘 다 사전에 Phase 계획에 없던 별도 기획 문서(`MukMate_Chat_Spec.md`, `MukMate_MyPage_Spec.md` — 저장소에는 커밋되어 있지 않은 외부 기획안)를 근거로 진행됐다. 이 문서는 실제 코드 상태를 기준으로 사후 기록한다.
+
+### 신고 기능 (커밋 `4a08a75`)
+
+- [x] `reports` 테이블 + `report_reason`/`report_status` ENUM, `users.account_status` ENUM 추가 (`lib/db/schema.ts`)
+- [x] `POST /api/reports` — 메시지/사용자 신고 접수. 자기 자신 신고 방지, 같은 메시지 중복 신고 방지(`UNIQUE(reporter_id, message_id)`), 신고 시점 메시지 내용 스냅샷 저장(나중에 원본이 삭제/수정돼도 신고 근거가 남도록)
+- [x] `components/chat/report-modal.tsx` — 채팅방에서 메시지/사용자 신고 UI, `chat-room-view.tsx`에 연동
+- [~] **관리자 처리 화면은 없음** — 신고는 `PENDING` 상태로 DB에 쌓이기만 하고, 이를 검토·처리(`REVIEWING`/`RESOLVED`/`DISMISSED`)할 화면이나 API는 아직 없음
+
+> **PRD와의 정합성 주의**: PRD §17-3은 "MVP에서는 신고 기능을 만들지 않고 운영 규칙·문의 창구만 안내한다"고 정했었다. 위 구현은 이 결정을 넘어선 것이므로, PRD §17-3/§8-3을 이 구현에 맞춰 갱신했다(v2.2). 관리자 처리 화면이 없는 채로 신고가 쌓이기만 하는 상태가 실사용에 괜찮은지는 재검토가 필요하다.
+
+### 참여 신청/승인 플로우 재구현 — FEAT-06 (커밋 `89b02f0`)
+
+- [x] `POST/DELETE /api/pots/:id/join` — 참여 신청 / 신청 취소·나가기. 정원 초과 검사, 대기 인원이 정원의 3배를 넘으면 신규 신청 차단(스팸 방지), 거절된 신청 재신청 차단
+- [x] `GET /api/pots/:id/requests` — 방장 전용 대기 중 신청 목록
+- [x] `PATCH /api/pots/:id/members/:userId` — 방장의 승인/거절 (참여 id가 아니라 `potId + userId`로 대상 지정)
+- [x] `lib/pots/viewer-state.ts` — 현재 로그인 사용자가 이 모집글에 대해 어떤 상태인지(`HOST`/`MEMBER`/`PENDING`/`REJECTED`/`JOINABLE`/`FULL`/`CLOSED`/`GUEST`)를 판정하는 `ViewerState`(`types/pot-member.ts`) 도입, 상세 화면 CTA 버튼이 이 상태를 기준으로 분기
+- [x] `components/pots/join-button.tsx`/`join-confirm-sheet.tsx`/`request-list.tsx` — 상세 화면(`pot-detail-view.tsx`)에 참여 신청 버튼 + 확인 시트 + (방장이면) 인라인 신청자 목록을 새로 추가, 기존 UI를 이 컴포넌트들로 교체
+- [x] `migrations/006_join_approval.sql` — `participations.approval_status`/`decided_at`/`decided_by` 컬럼 추가(`IF NOT EXISTS`) + PENDING 전용 부분 인덱스. **주의**: `approval_status`는 Phase 0부터 이미 `approval` ENUM 컬럼으로 존재했다 — 이 마이그레이션은 같은 이름의 컬럼을 다른 타입(VARCHAR)으로 다시 추가하려 시도하는 모양새라 `IF NOT EXISTS`가 없었다면 충돌났을 것. 실제 Neon DB에 이 마이그레이션이 적용됐는지, 적용됐다면 `decided_at`/`decided_by`를 실제로 채우는 코드가 있는지(현재 API 코드에는 없음) 확인이 필요하다
+
+**정리 완료 (2026-07-30)**: Phase 2에서 만든 `POST /api/pots/:id/participations` + `PATCH /api/applications/:id`, 그리고 이걸 쓰던 `pot-applications-view.tsx`(화면 #7)를 `join`/`members`/`requests` API 하나로 통합했다.
+
+- [x] `pot-applications-view.tsx`가 `updateApplicationStatus`(레거시) 대신 `decideMemberApplication`(`PATCH /api/pots/:id/members/:userId`)을 쓰도록 교체
+- [x] 레거시 라우트 `app/api/pots/[id]/participations/route.ts`, `app/api/applications/[id]/route.ts` 삭제
+- [x] `lib/api.ts`의 죽은 코드 `applyToPot`/`updateApplicationStatus` 제거
+- [x] 고아 마이그레이션 `migrations/006_join_approval.sql` 삭제, 유효했던 부분(대기 신청 조회용 부분 인덱스)만 `lib/db/schema.ts`에 정식 반영 후 `drizzle-kit generate` + `db:push`로 재적용 — `drizzle/0002_empty_martin_li.sql`로 마이그레이션 이력도 실제 DB 상태와 재동기화됨
+- [ ] 신고(`reports`) 처리 관리자 화면·API는 여전히 없음 — 별도 작업으로 남김 (PRD §17-3)
+
+---

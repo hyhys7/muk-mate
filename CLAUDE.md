@@ -1,13 +1,15 @@
 # 먹메이트 (MukMate)
 
-전북대 덕진구 생활권 학생들을 위한 공동주문 매칭 모바일 웹 서비스. 전체 요구사항·근거는 **`docs/PRD.md` (v2.1)가 단일 소스**다 — 이 파일은 방향을 잡기 위한 요약이며, 세부 규칙은 아래 스킬 문서를 따른다.
+전북대 덕진구 생활권 학생들을 위한 공동주문 매칭 모바일 웹 서비스. 전체 요구사항·근거는 **`docs/PRD.md` (v2.2)가 단일 소스**다 — 이 파일은 방향을 잡기 위한 요약이며, 세부 규칙은 아래 스킬 문서를 따른다.
 
 ## 지금 상태
 
-Phase 0~2(`docs/SPRINT_PLAN.md`) 완료 — DB(Neon)·인증·공동주문 핵심은 실제로 동작한다. Phase 3(장소 검색)부터가 남았다.
+Phase 0~7(`docs/SPRINT_PLAN.md`) 전부 완료 — DB(Neon)·인증·공동주문·카카오 장소 검색·채팅·마이페이지·프로덕션 검증까지 실제로 동작한다. 이후 Phase 7 완료 시점을 넘어선 추가 작업 2건이 더 들어갔다(`docs/SPRINT_PLAN.md`의 "Phase 7 이후" 절 참고).
 
-- **완료**: Neon Postgres 연결(Vercel 마켓플레이스 프로비저닝, 무료 티어), Auth.js Credentials 회원가입/로그인(`auth.ts`), 공동주문 목록/상세/작성/참여신청/승인거절/상태전이, 신규 화면 #7(참여 신청자 관리)
-- **남은 것**: 장소 검색(카카오 로컬 API, Phase 3), 채팅(Phase 4), 마이페이지·정보수정(Phase 5), 모집글 수정 화면(보류 중), P1 기능(Phase 6)
+- **완료**: Neon Postgres 연결(Vercel 마켓플레이스 프로비저닝, 무료 티어), Auth.js Credentials 회원가입/로그인, 공동주문 목록/상세/작성/참여/승인거절/상태전이, 화면 #7(참여 신청자 관리), 카카오 로컬 API 장소 검색, 폴링 채팅(주문 채팅 + 음식 커뮤니티), 마이페이지·정보수정·비밀번호 변경, **메시지/사용자 신고 기능**(PRD §17-3에서 "MVP 미구현"으로 정했던 항목인데 실제로 구현됨 — PRD가 아직 이 결정을 반영하지 못했었어서 문서를 갱신함), **참여 신청/승인 플로우 재구현**(FEAT-06: `/api/pots/:id/join`·`/members/:userId`·`/requests`)
+- **2026-07-30 정리 완료**: 참여 신청·승인 로직이 `join`/`members`/`requests`(신규) 와 `participations`/`applications`(레거시) 두 벌로 공존하던 문제를 해결 — 레거시 API 라우트와 그걸 쓰던 죽은 코드(`lib/api.ts`의 `applyToPot`/`updateApplicationStatus`)를 삭제하고, "참여 신청자 관리" 화면(`pot-applications-view.tsx`)도 신규 `members` 경로로 옮겨 로직을 한 곳으로 통합했다. 마이그레이션 이력도 `npx drizzle-kit generate`로 `drizzle/0002_empty_martin_li.sql`을 다시 만들어 스키마 파일·실제 Neon DB·이력을 재동기화했고, 아무 코드도 안 쓰던 고아 마이그레이션(`migrations/006_join_approval.sql`, `decided_at`/`decided_by` 컬럼)은 제거하되 실제로 유용한 부분(대기 신청 목록 조회용 부분 인덱스 `idx_participations_pending`)은 `lib/db/schema.ts`에 정식으로 옮겨 적용했다.
+- **알려진 이슈 (남음)**: 신고(`reports`) 기능은 접수만 되고 이를 검토·처리하는 관리자 화면·API가 없다 — `report_status`/`account_status`를 바꾸는 코드 경로가 아직 없음 (PRD §17-3).
+- **남은 것**: 모집글 수정 화면(보류 중), 신고 처리(관리자) 화면, P1 기능(Phase 6 — 거리 표시, 분담 금액)
 - `lib/api.ts` — **클라이언트(브라우저) 전용** fetch() 함수만 있다. DB/인증을 직접 import하지 않는다 — 그러면 서버 전용 코드가 브라우저 번들에 끼어들어가 빌드가 깨진다.
 - `lib/server-data.ts` — **서버 컴포넌트 전용** DB 조회 함수(`server-only` 패키지로 가드됨). 서버 컴포넌트(페이지)는 이 파일을, 클라이언트 컴포넌트는 `lib/api.ts`를 쓴다. 이 경계를 헷갈리면 안 된다.
 - `lib/db/schema.ts` — 실제 Neon 스키마(Drizzle). PRD §11-2와 1:1 대응. 컬럼을 바꾸면 `drizzle-kit generate` → `db:push`까지 해야 반영된다.

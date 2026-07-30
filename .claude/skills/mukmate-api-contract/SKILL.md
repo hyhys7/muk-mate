@@ -18,12 +18,16 @@ Reference API surface for MukMate. Source of truth: `docs/PRD.md` §11-3.
 | POST | `/api/pots` | Create a pot | Logged in |
 | GET | `/api/pots/:id` | Pot detail + participants + (P1) split calc | Public |
 | PATCH | `/api/pots/:id` | Edit pot / change status | **Host only** |
-| POST | `/api/pots/:id/applications` | Apply to join (with message) | Logged in |
-| PATCH | `/api/applications/:id` | Approve / reject | **Host only** |
+| POST / DELETE | `/api/pots/:id/join` | Apply to join / cancel-or-leave | Logged in |
+| GET | `/api/pots/:id/requests` | List pending join requests | **Host only** |
+| PATCH | `/api/pots/:id/members/:userId` | Approve / reject, keyed by `userId` | **Host only** |
 | GET | `/api/places/search?q=` | Kakao Local API keyword-search proxy | Logged in |
 | GET | `/api/rooms` | My chat rooms + fixed community rooms | Logged in |
 | GET | `/api/rooms/:id/messages?after=` | Incremental message fetch (polling) | **Room participant only** |
 | POST | `/api/rooms/:id/messages` | Send message | **Room participant only** |
+| POST | `/api/reports` | Report a message / user | Logged in |
+
+`/api/pots/:id/join` + `/requests` + `/members/:userId` is the **only** path for the join → approve/reject flow — both the pot detail page and the "참여 신청자 관리" screen (#7) call it. An older parallel path (`POST /api/pots/:id/participations`, `PATCH /api/applications/:id`) existed briefly after FEAT-06 and was removed 2026-07-30; don't reintroduce a second path for this flow.
 
 ## Non-negotiable rule
 

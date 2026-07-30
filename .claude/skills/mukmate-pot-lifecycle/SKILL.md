@@ -21,7 +21,7 @@ The physical `status` column updates lazily, the next time the host writes to th
 ## Permission rules — server-side, every request
 
 - `PATCH /api/pots/:id` (edit/status) — **host only** (`pots.host_id === session.user.id`), verified in the handler (ORDER-08).
-- `PATCH /api/applications/:id` (approve/reject) — **host of the parent pot only** (ORDER-04).
+- `PATCH /api/pots/:id/members/:userId` (approve/reject) — **host of the parent pot only** (ORDER-04). This is the single path for approve/reject; a parallel `PATCH /api/applications/:id` existed briefly and was removed 2026-07-30 — don't recreate a second path.
 - UI hiding a button is never sufficient — this standard is explicit elsewhere in the PRD for chat access and applies equally here.
 
 ## Participation rules
