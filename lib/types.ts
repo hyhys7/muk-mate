@@ -38,11 +38,14 @@ export interface Zone {
   label: string
 }
 
+export type UserRole = 'USER' | 'ADMIN'
+
 export interface User {
   id: string
   loginId: string
   nickname: string
   zoneCode: ZoneCode
+  role: UserRole
 }
 
 export interface Pot {

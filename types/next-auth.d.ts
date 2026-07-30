@@ -7,6 +7,7 @@ declare module 'next-auth' {
       loginId: string
       nickname: string
       zoneCode: string | null
+      role: string
     } & DefaultSession['user']
   }
 
@@ -15,6 +16,7 @@ declare module 'next-auth' {
     loginId: string
     nickname: string
     zoneCode: string | null
+    role: string
   }
 }
 
@@ -24,5 +26,6 @@ declare module 'next-auth/jwt' {
     loginId: string
     nickname: string
     zoneCode: string | null
+    role: string
   }
 }

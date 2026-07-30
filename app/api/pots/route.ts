@@ -1,7 +1,8 @@
+import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db'
-import { chatRooms, participations, pots } from '@/lib/db/schema'
+import { chatRooms, participations, pots, users } from '@/lib/db/schema'
 import { getPotById, getSessionUserOrNull, listPots } from '@/lib/server-data'
 
 const STORE_NAME_MAX = 60
@@ -24,6 +25,15 @@ export async function POST(request: Request) {
   const me = await getSessionUserOrNull()
   if (!me) {
     return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+  }
+
+  // v2.3: 정지/비활성 계정은 모집글 작성 불가 (17-4) — 세션(JWT)이 아니라 매 요청 DB 재조회로 즉시 반영
+  const [meRow] = await getDb().select({ accountStatus: users.accountStatus }).from(users).where(eq(users.id, me.id)).limit(1)
+  if (meRow?.accountStatus && meRow.accountStatus !== 'ACTIVE') {
+    return NextResponse.json(
+      { error: '계정이 일시 정지되거나 비활성화되어 모집글을 작성할 수 없습니다.' },
+      { status: 403 },
+    )
   }
 
   const body = await request.json().catch(() => null)

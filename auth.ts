@@ -32,11 +32,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const isValid = await bcrypt.compare(password, user.passwordHash)
         if (!isValid) return null
 
+        // v2.3: 정지/비활성 계정은 로그인 자체를 막는다 (17-4) — 채팅 전송에만 걸리던 검사를 로그인까지 확장
+        if (user.accountStatus === 'SUSPENDED') throw new Error('ACCOUNT_SUSPENDED')
+        if (user.accountStatus === 'DISABLED') throw new Error('ACCOUNT_DISABLED')
+
         return {
           id: user.id,
           loginId: user.loginId,
           nickname: user.nickname,
           zoneCode: user.zoneCode,
+          role: user.role,
         }
       },
     }),
@@ -48,6 +53,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.loginId = user.loginId
         token.nickname = user.nickname
         token.zoneCode = user.zoneCode
+        token.role = user.role
       }
       // 마이페이지에서 닉네임/활동지역을 바꾼 뒤 클라이언트가 useSession().update(...)를
       // 호출하면 여기로 들어온다 — JWT 세션은 DB를 다시 안 읽으므로, 반영하려면 이 경로가
@@ -63,6 +69,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.loginId = token.loginId as string
       session.user.nickname = token.nickname as string
       session.user.zoneCode = token.zoneCode as string | null
+      session.user.role = token.role as string
       return session
     },
   },

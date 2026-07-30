@@ -2,7 +2,7 @@ import { and, count, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db'
-import { participations, pots } from '@/lib/db/schema'
+import { participations, pots, users } from '@/lib/db/schema'
 import { createNotification } from '@/lib/notifications'
 import { computeEffectiveStatus, getSessionUserOrNull } from '@/lib/server-data'
 
@@ -12,6 +12,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const me = await getSessionUserOrNull()
   if (!me) {
     return NextResponse.json({ code: 'UNAUTHORIZED', error: '로그인이 필요합니다.' }, { status: 401 })
+  }
+
+  // v2.3: 정지/비활성 계정은 참여 신청 불가 (17-4) — 세션(JWT)이 아니라 매 요청 DB 재조회로 즉시 반영
+  const [meRow] = await getDb().select({ accountStatus: users.accountStatus }).from(users).where(eq(users.id, me.id)).limit(1)
+  if (meRow?.accountStatus && meRow.accountStatus !== 'ACTIVE') {
+    return NextResponse.json(
+      { code: 'ACCOUNT_RESTRICTED', error: '계정이 일시 정지되거나 비활성화되어 참여 신청할 수 없습니다.' },
+      { status: 403 },
+    )
   }
 
   const { id: potId } = await params

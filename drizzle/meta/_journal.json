@@ -22,6 +22,13 @@
       "when": 1785378153986,
       "tag": "0002_empty_martin_li",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785393461646,
+      "tag": "0003_premium_magdalene",
+      "breakpoints": true
     }
   ]
 }

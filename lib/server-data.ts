@@ -414,11 +414,12 @@ export async function getCurrentUser(): Promise<User> {
     loginId: session.user.loginId,
     nickname: session.user.nickname,
     zoneCode: session.user.zoneCode as ZoneCode,
+    role: session.user.role as User['role'],
   }
 }
 
 /** API Route Handler에서 쓰는 버전 — 리다이렉트 대신 null을 돌려주고 401 처리는 호출부가 한다. */
-export async function getSessionUserOrNull(): Promise<{ id: string; loginId: string; nickname: string; zoneCode: ZoneCode } | null> {
+export async function getSessionUserOrNull(): Promise<User | null> {
   const session = await auth()
   if (!session?.user) return null
   return {
@@ -426,6 +427,7 @@ export async function getSessionUserOrNull(): Promise<{ id: string; loginId: str
     loginId: session.user.loginId,
     nickname: session.user.nickname,
     zoneCode: session.user.zoneCode as ZoneCode,
+    role: session.user.role as User['role'],
   }
 }
 

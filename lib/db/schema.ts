@@ -24,6 +24,7 @@ export const roomTypeEnum = pgEnum('room_type', ['ORDER', 'COMMUNITY'])
 export const messageTypeEnum = pgEnum('message_type', ['TEXT', 'SYSTEM'])
 export const targetTypeEnum = pgEnum('target_type', ['HEADCOUNT', 'AMOUNT'])
 export const accountStatusEnum = pgEnum('account_status', ['ACTIVE', 'SUSPENDED', 'DISABLED'])
+export const userRoleEnum = pgEnum('user_role', ['USER', 'ADMIN'])
 export const reportReasonEnum = pgEnum('report_reason', [
   'HARASSMENT',
   'SEXUAL_CONTENT',
@@ -60,6 +61,7 @@ export const users = pgTable('users', {
     .notNull()
     .references(() => zones.code), // PRD §5-3: 활동 지역은 회원가입 필수 정보
   accountStatus: accountStatusEnum('account_status').notNull().default('ACTIVE'),
+  role: userRoleEnum('role').notNull().default('USER'), // 관리자 권한 검증 전용 — 셀프서비스로 바꿀 수 없음(DB에서 직접 부여)
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
