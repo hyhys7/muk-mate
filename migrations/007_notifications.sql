@@ -1,18 +1,13 @@
 -- migrations/007_notifications.sql
 
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notification_type') THEN
-    CREATE TYPE notification_type AS ENUM (
-      'APPLICATION_SUBMITTED',
-      'APPLICATION_RECEIVED',
-      'APPLICATION_APPROVED',
-      'APPLICATION_REJECTED',
-      'POT_COMPLETED',
-      'POT_CANCELED'
-    );
-  END IF;
-END $$;
+CREATE TYPE notification_type AS ENUM (
+  'APPLICATION_SUBMITTED',
+  'APPLICATION_RECEIVED',
+  'APPLICATION_APPROVED',
+  'APPLICATION_REJECTED',
+  'POT_COMPLETED',
+  'POT_CANCELED'
+);
 
 CREATE TABLE IF NOT EXISTS notifications (
   id               BIGSERIAL PRIMARY KEY,
