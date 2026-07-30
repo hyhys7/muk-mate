@@ -15,6 +15,12 @@ export default function AdminHomePage() {
       >
         모집글 관리 — 전체 목록·직권 삭제
       </Link>
+      <Link
+        href="/admin/users"
+        className="rounded-xl border border-border p-4 text-sm font-semibold text-foreground hover:bg-muted"
+      >
+        회원 관리 — 전체 회원 검색·계정 상태 변경
+      </Link>
     </div>
   )
 }

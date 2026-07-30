@@ -18,6 +18,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         <a href="/admin/pots" className="rounded-lg px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted">
           모집글 관리
         </a>
+        <a href="/admin/users" className="rounded-lg px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted">
+          회원 관리
+        </a>
       </nav>
       <main className="flex flex-1 flex-col">{children}</main>
     </div>

@@ -4,7 +4,7 @@ import { desc, inArray, sql } from 'drizzle-orm'
 
 import { getDb } from '@/lib/db'
 import { reports, users } from '@/lib/db/schema'
-import type { ReportReason, ReportStatus } from '@/lib/types'
+import type { AccountStatus, ReportReason, ReportStatus, UserRole, ZoneCode } from '@/lib/types'
 
 export interface AdminReportItem {
   id: string
@@ -65,5 +65,43 @@ export async function getReportsForAdmin(): Promise<AdminReportItem[]> {
     messageCreatedSnapshot: r.messageCreatedSnapshot?.toISOString() ?? null,
     reporter: userMap.get(r.reporterId) ?? null,
     reportedUser: userMap.get(r.reportedUserId) ?? null,
+  }))
+}
+
+export interface AdminUserItem {
+  id: string
+  loginId: string
+  nickname: string
+  zoneCode: ZoneCode
+  role: UserRole
+  accountStatus: AccountStatus
+  createdAt: string
+}
+
+/** 관리자 회원 목록 — 최신 가입순 */
+export async function getUsersForAdmin(): Promise<AdminUserItem[]> {
+  const db = getDb()
+
+  const rows = await db
+    .select({
+      id: users.id,
+      loginId: users.loginId,
+      nickname: users.nickname,
+      zoneCode: users.zoneCode,
+      role: users.role,
+      accountStatus: users.accountStatus,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .orderBy(desc(users.createdAt))
+
+  return rows.map((r) => ({
+    id: r.id,
+    loginId: r.loginId,
+    nickname: r.nickname,
+    zoneCode: r.zoneCode as ZoneCode,
+    role: r.role as UserRole,
+    accountStatus: r.accountStatus as AccountStatus,
+    createdAt: r.createdAt.toISOString(),
   }))
 }
