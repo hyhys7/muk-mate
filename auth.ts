@@ -2,13 +2,20 @@
 // Clerk/Descope/Auth0 등 외부 ID 제공자는 이 프로젝트의 명시적 비목표.
 // 자세한 규칙: .claude/skills/mukmate-auth/SKILL.md
 import { eq } from 'drizzle-orm'
-import NextAuth from 'next-auth'
+import NextAuth, { CredentialsSignin } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 
 import bcrypt from 'bcryptjs'
 
 import { getDb } from '@/lib/db'
 import { users } from '@/lib/db/schema'
+
+class AccountSuspendedError extends CredentialsSignin {
+  code = 'ACCOUNT_SUSPENDED'
+}
+class AccountDisabledError extends CredentialsSignin {
+  code = 'ACCOUNT_DISABLED'
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: 'jwt' },
@@ -33,8 +40,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!isValid) return null
 
         // v2.3: 정지/비활성 계정은 로그인 자체를 막는다 (17-4) — 채팅 전송에만 걸리던 검사를 로그인까지 확장
-        if (user.accountStatus === 'SUSPENDED') throw new Error('ACCOUNT_SUSPENDED')
-        if (user.accountStatus === 'DISABLED') throw new Error('ACCOUNT_DISABLED')
+        if (user.accountStatus === 'SUSPENDED') throw new AccountSuspendedError()
+        if (user.accountStatus === 'DISABLED') throw new AccountDisabledError()
 
         return {
           id: user.id,
