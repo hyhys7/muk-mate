@@ -18,6 +18,14 @@
 - 알림 배지는 실시간 push가 아니라 3초 간격 폴링(탭이 visible일 때만) — `components/notification-bell.tsx`.
 - 참여하기 버튼(`components/pots/join-button.tsx`)은 `viewerState`(`GUEST`/`JOINABLE`/`PENDING`/`MEMBER`/`HOST`/`FULL`/`CLOSED`/`REJECTED`)에 따라 라벨·활성화 여부가 결정됨 — 본인이 방장인 글에선 "모집 마감하기"로 보이는 게 의도된 동작(참여하기가 아님).
 
+### 참여하기 버튼이 실제로는 안 보였던 진짜 원인 (2026-07-30 후속 수정)
+- 위 curl 검증은 서버가 내려주는 HTML에 버튼 마크업이 존재하는지만 확인한 거라, **실제 화면에서 다른 요소에 가려지는 문제**와 **비로그인 접근 자체가 막혀있는 문제**는 놓쳤음.
+- 실제 원인 2가지를 찾아 수정함(커밋 `d3f79f2`, `275f6e4`):
+  1. `(main)` 레이아웃이 비로그인 사용자를 무조건 `/login`으로 리다이렉트해서, 게스트는 모집글 상세를 아예 볼 수 없었음 → `app/(main)/pots/page.tsx`, `app/(main)/pots/[id]/page.tsx`를 `getSessionUserOrNull()` 기반으로 바꿔 게스트도 목록/상세를 보고 "로그인하고 참여하기" CTA를 보게 함.
+  2. 하단 네비게이션 바(`components/bottom-nav.tsx`)가 상세 페이지 하단 고정 참여하기 버튼과 겹쳐서 시각적으로 가리고 있었음 → 경로가 정확히 `/pots`·`/chat`·`/my`일 때만 네비를 표시하도록 변경.
+- **확인 필요**: 2번 수정으로 `/notifications`, `/my/edit`, `/pots/new`, `/chat/[id]` 등 세부 페이지에서도 하단 네비가 사라지는 부수효과가 생김 — 의도된 것인지 점검 필요.
+- **문서 갱신 필요**: `CLAUDE.md`의 "`(main)` 전체는 로그인 세션이 없으면 `/login`으로 리다이렉트된다"는 서술이 이제 `/pots`·`/pots/[id]`엔 더 이상 사실이 아님 — CLAUDE.md/PRD 동기화 필요.
+
 ---
 
 ## 🔜 예정 작업
