@@ -29,7 +29,7 @@
 
 **목표**: 신고 없이도 운영자가 부적절한 모집글을 즉시 내릴 수 있다.
 
-- [ ] `GET /api/admin/pots?q=` — zone 무관 전체 목록/검색
+- [ ] `app/admin/pots/page.tsx`: 기존 `listPots()`(`lib/server-data.ts`, 필터 없이 호출하면 이미 zone 무관 전체 목록)를 재사용 — 별도 REST 목록 API 없음, 검색은 클라이언트 필터
 - [ ] `DELETE /api/admin/pots/:id` — 참여자·방장 조건 무시하고 즉시 삭제(cascade로 참여/채팅방/알림도 함께 정리됨, 스키마상 이미 `onDelete: cascade`)
 - [ ] `app/admin/pots/page.tsx` — 목록 + 검색 + 삭제 확인 다이얼로그
 - [ ] `app/admin/page.tsx` 최종 정리 — 신고함/모집글 관리로 가는 실제 랜딩

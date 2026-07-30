@@ -181,6 +181,14 @@ export async function updateUserAccountStatus(
   await parseJsonResponse<{ user: unknown }>(res)
 }
 
+/** [관리자] 모집글 직권 삭제 — DELETE /api/admin/pots/:id, 참여자/방장 조건 무시 */
+export async function adminDeletePot(potId: string): Promise<void> {
+  const res = await fetch(`/api/admin/pots/${potId}`, {
+    method: 'DELETE',
+  })
+  await parseJsonResponse<{ ok: boolean }>(res)
+}
+
 /** 메시지/사용자 신고 등록 — POST /api/reports */
 export async function sendReport(input: {
   reportedUserId: string

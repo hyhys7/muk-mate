@@ -689,7 +689,6 @@ CREATE INDEX idx_reports_status_created ON reports (status, created_at);
 | POST | `/api/reports` | 메시지 / 사용자 신고 접수 (v2.2, CHAT-08) | 로그인 |
 | PATCH | `/api/admin/reports/:id` | 신고 상태·메모 변경 (v2.3, 17-4) | **관리자만** |
 | PATCH | `/api/admin/users/:id` | 계정 상태(`account_status`) 변경 (v2.3, 17-4) | **관리자만** |
-| GET | `/api/admin/pots?q=` | 전체 모집글 목록/검색 — zone 무관 (v2.3, 17-4) | **관리자만** |
 | DELETE | `/api/admin/pots/:id` | 모집글 직권 삭제 — 참여자/방장 조건 무시 (v2.3, 17-4) | **관리자만** |
 
 > **2026-07-30 정리 완료**: 참여 신청/승인 경로가 신규(`join`/`members`/`requests`)와 레거시(`participations`/`applications`) 두 벌로 공존하던 문제를 해결 — 레거시 경로(`POST /api/pots/:id/participations`, `PATCH /api/applications/:id`)와 이를 쓰던 죽은 코드(`lib/api.ts`의 `applyToPot`/`updateApplicationStatus`)를 제거하고, 화면 #7(`참여 신청자 관리`)도 신규 `members` 경로로 옮겨 지금은 참여 승인/거절 로직이 한 곳으로 통합돼 있다.
