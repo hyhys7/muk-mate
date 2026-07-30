@@ -1,4 +1,4 @@
-import { and, count, eq, inArray } from 'drizzle-orm'
+import { and, count, eq, inArray, ne } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db'
@@ -144,8 +144,12 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json({ code: 'FORBIDDEN', error: '모집자만 삭제할 수 있습니다.' }, { status: 403 })
   }
 
-  // 참여 신청(대기중 포함) 1건이라도 있으면 삭제 불가
-  const [{ cnt }] = await db.select({ cnt: count() }).from(participations).where(eq(participations.potId, id))
+  // 참여 신청(대기중 포함) 1건이라도 있으면 삭제 불가.
+  // 방장 본인도 모집글 생성 시 APPROVED 참여자로 함께 등록되므로(POST /api/pots) 집계에서 제외한다.
+  const [{ cnt }] = await db
+    .select({ cnt: count() })
+    .from(participations)
+    .where(and(eq(participations.potId, id), ne(participations.userId, me.id)))
   if (cnt > 0) {
     return NextResponse.json(
       { code: 'HAS_PARTICIPANTS', error: '참여 신청이 있는 모집글은 삭제할 수 없습니다.' },
