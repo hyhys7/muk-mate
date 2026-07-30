@@ -98,25 +98,6 @@ export async function getPotRequests(
   return parseJsonResponse(res)
 }
 
-/** 기존 호환 참여 신청 — POST /api/pots/:id/participations */
-export async function applyToPot(potId: string, applyMessage: string): Promise<Participation> {
-  return requestJoinPot(potId, applyMessage)
-}
-
-/** 기존 호환 참여 신청 승인/거절 — PATCH /api/applications/:id, 모집자 전용 */
-export async function updateApplicationStatus(
-  applicationId: string,
-  action: 'APPROVE' | 'REJECT',
-): Promise<Participation> {
-  const res = await fetch(`/api/applications/${applicationId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action }),
-  })
-  const data = await parseJsonResponse<{ participation: Participation }>(res)
-  return data.participation
-}
-
 /** 기본정보(닉네임/활동지역) 수정 — PATCH /api/me */
 export async function updateProfile(input: { nickname: string; zoneCode: ZoneCode }): Promise<{
   nickname: string

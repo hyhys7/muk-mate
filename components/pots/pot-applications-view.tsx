@@ -8,7 +8,7 @@ import { ApprovalBadge, PotStatusBadge } from '@/components/status-badge'
 import { StoreAvatar } from '@/components/store-avatar'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/empty-state'
-import { updateApplicationStatus, updatePotStatus } from '@/lib/api'
+import { decideMemberApplication, updatePotStatus } from '@/lib/api'
 import type { Participation, Pot, PotStatus } from '@/lib/types'
 
 const STATUS_ACTIONS: Partial<Record<PotStatus, { label: string; next: PotStatus; variant: 'default' | 'destructive' }[]>> = {
@@ -37,11 +37,11 @@ export function PotApplicationsView({
   const approved = participations.filter((p) => p.approvalStatus === 'APPROVED')
   const rejected = participations.filter((p) => p.approvalStatus === 'REJECTED')
 
-  async function handleDecision(id: string, action: 'APPROVE' | 'REJECT') {
-    setProcessingId(id)
+  async function handleDecision(participationId: string, userId: string, action: 'APPROVE' | 'REJECT') {
+    setProcessingId(participationId)
     setError(null)
     try {
-      await updateApplicationStatus(id, action)
+      await decideMemberApplication(pot.id, userId, action === 'APPROVE' ? 'approve' : 'reject')
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : '처리에 실패했어요.')
@@ -126,7 +126,7 @@ export function PotApplicationsView({
                         variant="outline"
                         className="h-10 flex-1 gap-1.5 rounded-lg text-sm font-semibold"
                         disabled={processingId === p.id}
-                        onClick={() => handleDecision(p.id, 'REJECT')}
+                        onClick={() => handleDecision(p.id, p.userId, 'REJECT')}
                       >
                         <X className="size-4" />
                         거절
@@ -134,7 +134,7 @@ export function PotApplicationsView({
                       <Button
                         className="h-10 flex-1 gap-1.5 rounded-lg text-sm font-semibold"
                         disabled={processingId === p.id}
-                        onClick={() => handleDecision(p.id, 'APPROVE')}
+                        onClick={() => handleDecision(p.id, p.userId, 'APPROVE')}
                       >
                         <Check className="size-4" />
                         승인
