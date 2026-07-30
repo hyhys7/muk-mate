@@ -24,9 +24,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const list = await getMessagesForRoom(id, Number.isFinite(after) ? after : 0, me.id)
 
+  // 방을 조회했다는 건 읽었다는 뜻 — 방 종류 무관하게 내 커서를 올린다(채팅 목록 안읽음 수에 반영됨).
+  await markRoomRead(id, me.id)
+
+  // 참여자 전원의 읽음 커서 스냅샷(메시지별 안읽음 인원수 배지용)은 참여자 집합이 정해진 ORDER 방에서만 의미가 있다.
   let reads: Awaited<ReturnType<typeof getRoomReads>> = []
   if (access.type === 'ORDER' && access.pot) {
-    await markRoomRead(id, me.id)
     reads = await getRoomReads(id, access.pot.id)
   }
 
@@ -72,9 +75,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .values({ roomId: id, senderId: me.id, type: 'TEXT', content })
     .returning()
 
-  if (access.type === 'ORDER') {
-    await markRoomRead(id, me.id)
-  }
+  // 내가 방금 보낸 메시지는 당연히 내가 읽은 것으로 처리(방 종류 무관)
+  await markRoomRead(id, me.id)
 
   return NextResponse.json(
     {

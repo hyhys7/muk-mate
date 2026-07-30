@@ -452,6 +452,24 @@ async function getLastMessagesForRooms(roomIds: string[]) {
   return result
 }
 
+/** 읽음 표시(v2.5): 채팅 목록에서 방마다 보여줄 "내가 안 읽은 메시지 수" — room_reads의 개인 커서 기준 */
+async function getUnreadCountsForRooms(roomIds: string[], userId: string): Promise<Map<string, number>> {
+  if (roomIds.length === 0) return new Map()
+  const db = getDb()
+
+  const rows = await db
+    .select({
+      roomId: messages.roomId,
+      unreadCount: sql<number>`count(*) filter (where ${messages.id} > coalesce(${roomReads.lastReadMessageId}, 0))`,
+    })
+    .from(messages)
+    .leftJoin(roomReads, and(eq(roomReads.roomId, messages.roomId), eq(roomReads.userId, userId)))
+    .where(inArray(messages.roomId, roomIds))
+    .groupBy(messages.roomId)
+
+  return new Map(rows.map((r) => [r.roomId, Number(r.unreadCount)]))
+}
+
 /**
  * 로그인 사용자의 채팅방 목록 — 내가 host이거나 APPROVED 참여자인 ORDER 방
  * (호스트도 자동 APPROVED 행이 있으므로 별도 분기 불필요) + 전체 COMMUNITY 고정방.
@@ -490,6 +508,7 @@ export async function listRoomsForUser(userId: string): Promise<ChatRoom[]> {
 
   const allRoomIds = [...orderRoomsRaw.map((r) => r.id), ...communityRoomsRaw.map((r) => r.id)]
   const lastMessages = await getLastMessagesForRooms(allRoomIds)
+  const unreadCounts = await getUnreadCountsForRooms(allRoomIds, userId)
 
   const orderRooms: ChatRoom[] = orderRoomsRaw.map((r) => {
     const last = lastMessages.get(r.id)
@@ -502,8 +521,7 @@ export async function listRoomsForUser(userId: string): Promise<ChatRoom[]> {
       potStatus: computeEffectiveStatus(r.potStatus, r.potDeadlineAt),
       lastMessage: last?.content ?? '',
       lastMessageAt: last?.createdAt.toISOString() ?? '',
-      // 읽음 여부를 추적하는 컬럼이 없어 항상 0 — PRD가 요구하지 않는 기능이라 스키마를 늘리지 않음
-      unreadCount: 0,
+      unreadCount: unreadCounts.get(r.id) ?? 0,
     }
   })
 
@@ -516,7 +534,7 @@ export async function listRoomsForUser(userId: string): Promise<ChatRoom[]> {
       title: r.title,
       lastMessage: last?.content ?? '',
       lastMessageAt: last?.createdAt.toISOString() ?? '',
-      unreadCount: 0,
+      unreadCount: unreadCounts.get(r.id) ?? 0,
     }
   })
 
