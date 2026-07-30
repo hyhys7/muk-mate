@@ -840,11 +840,11 @@ MVP는 화면만 연결된 프로토타입이 아니라, **서로 다른 계정�
 - **신고를 검토·처리하는 관리자 화면·API는 17-4에서 신설한다.** `report_status`(`REVIEWING`/`RESOLVED`/`DISMISSED`)와 `users.account_status`(`SUSPENDED`/`DISABLED`)를 실제로 바꾸는 코드 경로를 이번 버전에서 추가한다.
 - 자동 제재·평점 시스템은 여전히 다음 버전 과제로 남는다.
 
-### 17-4. 관리자 기능 (v2.3 신규)
+### 17-4. 관리자 기능 (v2.3 신규 — 구현됨)
 
-정의 근거·제외 범위의 상세 이유는 `docs/ADMIN_FEATURES.md`, 개발 로드맵은 `docs/ADMIN_ROADMAP.md`를 단일 소스로 참고한다. 요약:
+정의 근거·제외 범위의 상세 이유는 `docs/ADMIN_FEATURES.md`, 개발 로드맵·검증 기록은 `docs/ADMIN_ROADMAP.md`를 단일 소스로 참고한다. 4개 기능 모두 3개 스프린트로 나눠 구현·배포하고, 실제 계정으로 로그인·참여·작성·채팅·신고 처리·직권 삭제 전체 플로우를 프로덕션에서 재현 검증까지 마쳤다(2026-07-30). 요약:
 
-**확정 범위 (4개)**
+**확정 범위 (4개, 전부 구현됨)**
 1. **관리자 권한 검증** — `users.role`(`USER`/`ADMIN`, 기본 `USER`) 컬럼 추가. 별도 RBAC 테이블 없이 단일 컬럼으로 처리(운영자 1~2명 규모에 맞춤). 관리자 부여는 셀프서비스 없이 DB에서 직접 처리. `/admin` 이하 페이지·`/api/admin/*` 라우트 모두 서버에서 `role === 'ADMIN'` 검사.
 2. **신고 처리** — `/admin/reports`에서 신고 목록 조회, 상태(`REVIEWING`/`RESOLVED`/`DISMISSED`) 변경, `admin_note`/`reviewed_at` 기록. 신고 상세에서 바로 회원 정지 액션 실행 가능.
 3. **회원 상태 제어(제재/정지)** — `account_status`를 관리자가 변경. **v2.2까지는 채팅 메시지 전송(CHAT-15)에만 이 값이 적용됐다** — 로그인·참여 신청·모집글 작성에는 체크가 없어 "정지"가 실질적 효력이 없었다. v2.3에서 로그인(Credentials `authorize`), `POST /api/pots/:id/join`, `POST /api/pots`까지 검사를 확장해 실제로 이용을 막는다.

@@ -24,7 +24,7 @@
   1. `(main)` 레이아웃이 비로그인 사용자를 무조건 `/login`으로 리다이렉트해서, 게스트는 모집글 상세를 아예 볼 수 없었음 → `app/(main)/pots/page.tsx`, `app/(main)/pots/[id]/page.tsx`를 `getSessionUserOrNull()` 기반으로 바꿔 게스트도 목록/상세를 보고 "로그인하고 참여하기" CTA를 보게 함.
   2. 하단 네비게이션 바(`components/bottom-nav.tsx`)가 상세 페이지 하단 고정 참여하기 버튼과 겹쳐서 시각적으로 가리고 있었음 → 경로가 정확히 `/pots`·`/chat`·`/my`일 때만 네비를 표시하도록 변경.
 - **확인 필요**: 2번 수정으로 `/notifications`, `/my/edit`, `/pots/new`, `/chat/[id]` 등 세부 페이지에서도 하단 네비가 사라지는 부수효과가 생김 — 의도된 것인지 점검 필요.
-- **문서 갱신 필요**: `CLAUDE.md`의 "`(main)` 전체는 로그인 세션이 없으면 `/login`으로 리다이렉트된다"는 서술이 이제 `/pots`·`/pots/[id]`엔 더 이상 사실이 아님 — CLAUDE.md/PRD 동기화 필요.
+- **문서 갱신 완료(2026-07-30)**: `CLAUDE.md`의 "`(main)` 전체는 로그인 세션이 없으면 `/login`으로 리다이렉트된다"는 서술을 `/pots`·`/pots/[id]` 게스트 접근 허용 반영해 갱신함.
 
 ---
 
