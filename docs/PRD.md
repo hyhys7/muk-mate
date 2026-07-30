@@ -687,7 +687,6 @@ CREATE INDEX idx_reports_status_created ON reports (status, created_at);
 | GET | `/api/rooms/:id/messages?after=` | 증분 메시지 조회 (폴링) | **참여자만** |
 | POST | `/api/rooms/:id/messages` | 메시지 전송 | **참여자만** |
 | POST | `/api/reports` | 메시지 / 사용자 신고 접수 (v2.2, CHAT-08) | 로그인 |
-| GET | `/api/admin/reports?status=` | 신고 목록 조회 (v2.3, 17-4) | **관리자만** |
 | PATCH | `/api/admin/reports/:id` | 신고 상태·메모 변경 (v2.3, 17-4) | **관리자만** |
 | PATCH | `/api/admin/users/:id` | 계정 상태(`account_status`) 변경 (v2.3, 17-4) | **관리자만** |
 | GET | `/api/admin/pots?q=` | 전체 모집글 목록/검색 — zone 무관 (v2.3, 17-4) | **관리자만** |

@@ -155,6 +155,32 @@ export async function searchPlaces(keyword: string): Promise<Place[]> {
   return parseJsonResponse<Place[]>(res)
 }
 
+/** [관리자] 신고 상태·메모 변경 — PATCH /api/admin/reports/:id */
+export async function updateReportStatus(
+  reportId: string,
+  input: { status: 'REVIEWING' | 'RESOLVED' | 'DISMISSED'; adminNote?: string },
+): Promise<void> {
+  const res = await fetch(`/api/admin/reports/${reportId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  await parseJsonResponse<{ report: unknown }>(res)
+}
+
+/** [관리자] 계정 상태 변경 — PATCH /api/admin/users/:id */
+export async function updateUserAccountStatus(
+  userId: string,
+  accountStatus: 'ACTIVE' | 'SUSPENDED' | 'DISABLED',
+): Promise<void> {
+  const res = await fetch(`/api/admin/users/${userId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accountStatus }),
+  })
+  await parseJsonResponse<{ user: unknown }>(res)
+}
+
 /** 메시지/사용자 신고 등록 — POST /api/reports */
 export async function sendReport(input: {
   reportedUserId: string

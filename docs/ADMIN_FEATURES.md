@@ -48,8 +48,9 @@
 
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
-| GET | `/api/admin/reports?status=` | 신고 목록 조회 | 관리자 |
 | PATCH | `/api/admin/reports/:id` | 신고 상태·메모 변경 | 관리자 |
 | PATCH | `/api/admin/users/:id` | 계정 상태(`account_status`) 변경 | 관리자 |
 | GET | `/api/admin/pots?q=` | 전체 모집글 목록/검색 (zone 무관) | 관리자 |
 | DELETE | `/api/admin/pots/:id` | 모집글 직권 삭제 (참여자/방장 조건 무시) | 관리자 |
+
+> 신고 목록 조회는 별도 REST 엔드포인트를 두지 않는다. `/admin/reports` 페이지(서버 컴포넌트)가 `lib/admin/data.ts`의 조회 함수를 직접 호출해 초기 데이터를 받고, 처리(상태 변경/정지) 후에는 `router.refresh()`로 다시 조회한다 — `lib/api.ts`(클라이언트)와 `lib/server-data.ts`(서버 컴포넌트)를 분리한 이 프로젝트의 기존 관례와 동일하다.

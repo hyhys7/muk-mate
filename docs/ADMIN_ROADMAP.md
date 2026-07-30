@@ -19,7 +19,7 @@
 
 **목표**: 관리자가 신고를 실제로 보고 처리할 수 있다.
 
-- [ ] `GET /api/admin/reports?status=` — 목록(기본 `PENDING` 우선 정렬)
+- [ ] `lib/admin/data.ts`: `getReportsForAdmin()` — 서버 컴포넌트가 직접 호출(별도 REST 목록 API 없음, `PENDING`/`REVIEWING` 우선 정렬)
 - [ ] `PATCH /api/admin/reports/:id` — `status`, `adminNote` 변경, `reviewedAt` 기록
 - [ ] `PATCH /api/admin/users/:id` — `accountStatus` 변경(신고 상세 화면에서 호출)
 - [ ] `app/admin/reports/page.tsx` — 목록 + 상태 필터 + 상세(신고 사유/메시지 스냅샷) + 상태 변경 폼 + "이 유저 정지" 버튼
