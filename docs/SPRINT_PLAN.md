@@ -285,4 +285,27 @@ MVP 배포를 위한 최소 관리자 기능을 별도 문서로 먼저 정의�
 - [x] **검증 완료 (2026-07-30, 프로덕션)**: 실제 계정으로 참여자 있는 모집중인 글을 호스트한 상태에서 탈퇴 실행 → 잘못된 비밀번호는 403으로 거부, 올바른 비밀번호는 성공 → 모집글이 CANCELED로 전환되고 호스트 닉네임이 "탈퇴한 사용자"로 표시됨 확인 → 참여자에게 `POT_CANCELED` 알림과 채팅방 시스템 메시지가 정상 생성됨 확인 → 탈퇴한 계정 재로그인 시 `ACCOUNT_DISABLED`로 차단 확인. 리팩터링한 방장 직접 취소(PATCH) 경로도 회귀 없이 정상 동작함을 별도로 확인.
 - 상세 기록: PRD §0-6, §8-1 AUTH-09
 
+### 11. 픽업 장소 지도 미리보기 (당근마켓 스타일)
+
+카카오 지도 JS SDK는 장소 검색(REST API)과 별개 키가 필요하고, 브라우저에 노출되는 게 정상이라 카카오 디벨로퍼스에서 도메인을 직접 등록해야 동작한다.
+
+- [x] `NEXT_PUBLIC_KAKAO_JS_KEY` 환경변수 추가(Production/Preview/Development), `.env.local`에도 반영
+- [x] `lib/kakao-maps-loader.ts` — SDK 스크립트를 한 번만 로드하는 싱글턴 로더(`autoload=false` + `kakao.maps.load()` 콜백 패턴)
+- [x] `components/pots/kakao-map-preview.tsx` — 픽업 장소 선택 시 그 아래 지도 렌더링, 다른 곳으로 바꾸면 마커도 다시 이동
+- [x] `pot-create-form.tsx`의 "수령 장소" 입력 밑에 지도 삽입
+- **디버깅 기록**: 처음엔 카카오 디벨로퍼스에 도메인 미등록으로 401(`domain mismatched`) 발생 → **플랫폼 키 > JavaScript 키(Default JS Key) 클릭 > "JavaScript SDK 도메인"**에 `https://muk-mate.vercel.app` 등록으로 해결(주의: "일반" 탭의 "앱 대표 도메인"이나 "+ JavaScript 키 추가"는 다른 항목이라 혼동하기 쉬움). 등록 후에도 사용자 PC 한 대에서만 재현되던 문제는 브라우저 확장 프로그램이 아니라 **크롬의 사이트별 데이터(`chrome://settings/content/all`)에 도메인 등록 전 실패했던 흔적이 남아있던 것**이었고, 해당 사이트 데이터 삭제로 해결됨(다른 팀원 PC·시크릿 모드에서는 처음부터 정상 동작해 원인 특정에 도움이 됨).
+- 시각적 보조 기능이라 별도 PRD 요구사항 번호는 부여하지 않음(ORDER-14 공유 기능처럼 기존 픽업 장소 지정 흐름의 UX 개선으로 취급)
+
+### 12. 게스트 접근 재차단 + "로그인 상태 유지" 체크박스
+
+같은 날 도입했던 게스트 접근(1번 항목 참고)을 다음날 요청으로 다시 닫고, 대신 "로그인 상태 유지" 체크 여부로 세션 지속 기간을 다르게 가져가는 기능을 신설했다.
+
+- [x] `app/(main)/pots/page.tsx`, `app/(main)/pots/[id]/page.tsx`를 `getSessionUserOrNull()` → `getCurrentUser()`로 되돌려 게스트 접근 재차단 — 루트(`/`)도 다시 무조건 `/login`부터
+- [x] NextAuth JWT 세션 쿠키의 `maxAge`가 `NextAuth()` 초기화 시점에 고정되는 정적 설정이라 로그인마다 다르게 줄 공식 API가 없다는 걸 `@auth/core` 소스(`lib/actions/callback/index.js`, `lib/actions/session.js`)로 직접 확인 — 콜백에서 손댈 수 있는 건 토큰 payload뿐, 쿠키 자체의 Max-Age는 아님
+- [x] 대신 별도 가드 쿠키(`lib/auth-constants.ts`: `mukmate_remember_guard`) 도입 — 체크 시 `Max-Age=2592000`(30일), 체크 해제 시 Max-Age 자체를 생략해 브라우저 세션 쿠키(종료 시 자동 삭제)로 발급
+- [x] `getCurrentUser()`/`getSessionUserOrNull()`이 NextAuth 세션 + 이 가드 쿠키가 둘 다 있어야 로그인으로 인정하도록 수정 — 서버 컴포넌트에서 판정하므로 로그인 화면이 잠깐 보였다 넘어가는 깜빡임 없음
+- [x] `POST/DELETE /api/auth/session-guard` — 로그인·가입직후자동로그인(`remember:true` 고정)·로그아웃 2곳에서 각각 호출
+- [x] **검증 완료 (2026-07-31, 프로덕션)**: 게스트로 `/pots` 접근 시 `/login` 리다이렉트 재확인 → `remember=true`/`false` 각각 로그인 후 가드 쿠키 발급 응답 헤더에서 `Max-Age=2592000` 있음/없음 정확히 갈리는 것 확인 → `remember=false`로 로그인한 뒤 가드 쿠키만 강제로 제거(브라우저 종료 시뮬레이션)하고 재요청 시, NextAuth 세션 쿠키 자체는 아직 유효한데도 `/login`으로 즉시 차단되는 것까지 확인.
+- 상세 기록: PRD §0-7, §8-1 AUTH-10/AUTH-11
+
 ---
