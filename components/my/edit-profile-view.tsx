@@ -68,6 +68,7 @@ export function EditProfileView({ me }: { me: { nickname: string; zoneCode: Zone
     setWithdrawError(null)
     try {
       await withdrawAccount(withdrawPassword)
+      await fetch('/api/auth/session-guard', { method: 'DELETE' })
       await signOut({ callbackUrl: '/login' })
     } catch (err) {
       setWithdrawError(err instanceof Error ? err.message : '탈퇴에 실패했어요.')

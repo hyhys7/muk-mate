@@ -72,6 +72,14 @@ export default function OnboardingPage() {
       router.push('/login')
       return
     }
+
+    // 방금 가입 직후 자동 로그인이라 "로그인 상태 유지"를 켠 것으로 간주
+    await fetch('/api/auth/session-guard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ remember: true }),
+    })
+
     router.push('/pots')
   }
 

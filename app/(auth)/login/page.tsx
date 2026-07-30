@@ -14,6 +14,7 @@ function LoginForm() {
   const searchParams = useSearchParams()
   const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -24,8 +25,8 @@ function LoginForm() {
 
     const result = await signIn('credentials', { loginId, password, redirect: false })
 
-    setSubmitting(false)
     if (result?.error) {
+      setSubmitting(false)
       if (result.code === 'ACCOUNT_SUSPENDED') {
         setError('정지된 계정입니다. 문의를 통해 확인해 주세요.')
       } else if (result.code === 'ACCOUNT_DISABLED') {
@@ -35,6 +36,15 @@ function LoginForm() {
       }
       return
     }
+
+    // "로그인 상태 유지" 체크 여부에 따라 가드 쿠키 발급 — 체크 안 하면 브라우저 종료 시 로그아웃됨
+    await fetch('/api/auth/session-guard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ remember: rememberMe }),
+    })
+
+    setSubmitting(false)
     const next = searchParams.get('next')
     router.push(next && next.startsWith('/') && !next.startsWith('//') ? next : '/pots')
   }
@@ -63,6 +73,17 @@ function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+
+          <label className="flex items-center gap-2 px-1 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="size-4 rounded border-border accent-primary"
+            />
+            로그인 상태 유지 (체크 안 하면 브라우저를 닫으면 로그아웃돼요)
+          </label>
+
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button
             type="submit"

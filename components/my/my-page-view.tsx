@@ -379,7 +379,10 @@ export function MyPageView({
             </Button>
             <Button
               variant="destructive"
-              onClick={() => signOut({ callbackUrl: '/login' })}
+              onClick={() => {
+                fetch('/api/auth/session-guard', { method: 'DELETE' })
+                signOut({ callbackUrl: '/login' })
+              }}
               className="h-11 flex-1 rounded-xl font-bold"
             >
               로그아웃

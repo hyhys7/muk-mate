@@ -1,9 +1,11 @@
 import 'server-only'
 
 import { and, asc, count, desc, eq, gt, inArray, lt, sql } from 'drizzle-orm'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { auth } from '@/auth'
+import { REMEMBER_GUARD_COOKIE } from '@/lib/auth-constants'
 import { getDb } from '@/lib/db'
 import { chatRooms, messages, notifications, participations, pots, roomReads, users } from '@/lib/db/schema'
 import { formatDateTime } from '@/lib/format'
@@ -466,9 +468,19 @@ export async function getPendingRequestsForPot(potId: string): Promise<{
 }
 
 /** 로그인된 사용자 정보. 세션이 없으면 로그인 화면으로 보낸다 — (main) 구간은 전부 로그인 전제. */
+/**
+ * "로그인 상태 유지" 미체크 시 브라우저 종료로 사라지는 가드 쿠키가 있는지 확인한다.
+ * NextAuth 세션 쿠키 자체는 항상 30일 고정이라, 이 보조 쿠키가 없으면 로그아웃 상태로 취급한다
+ * (lib/auth-constants.ts 참고).
+ */
+async function hasRememberGuard(): Promise<boolean> {
+  const store = await cookies()
+  return store.get(REMEMBER_GUARD_COOKIE) !== undefined
+}
+
 export async function getCurrentUser(): Promise<User> {
   const session = await auth()
-  if (!session?.user) {
+  if (!session?.user || !(await hasRememberGuard())) {
     redirect('/login')
   }
   return {
@@ -483,7 +495,7 @@ export async function getCurrentUser(): Promise<User> {
 /** API Route Handler에서 쓰는 버전 — 리다이렉트 대신 null을 돌려주고 401 처리는 호출부가 한다. */
 export async function getSessionUserOrNull(): Promise<User | null> {
   const session = await auth()
-  if (!session?.user) return null
+  if (!session?.user || !(await hasRememberGuard())) return null
   return {
     id: session.user.id,
     loginId: session.user.loginId,

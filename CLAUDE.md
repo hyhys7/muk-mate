@@ -15,7 +15,8 @@ Phase 0~7(`docs/SPRINT_PLAN.md`) 전부 완료 — DB(Neon)·인증·공동주�
 - `lib/db/schema.ts` — 실제 Neon 스키마(Drizzle). PRD §11-2와 1:1 대응. 컬럼을 바꾸면 `drizzle-kit generate` → `db:push`까지 해야 반영된다.
 - `lib/types.ts` — 클라이언트(mock 시절부터 있던) 도메인 타입. `lib/server-data.ts`가 DB 로우를 이 타입 모양으로 매핑해서 돌려준다.
 - `lib/constants.ts` — 활동 지역(zone) 4권역이 이미 PRD §17-1의 제안대로 확정 적용됨: `GUJEONGMUN`(구정문) · `SINJEONGMUN`(신정문) · `DORM`(기숙사) · `SADAEBUGO`(사대부고 주변). 이 목록을 임의로 바꾸지 말 것 — 바꾸려면 PRD §17-1 결정을 먼저 갱신한다.
-- 라우팅은 App Router 그룹으로 분리: `app/(auth)/` (로그인/회원가입/온보딩), `app/(main)/` (공동주문/채팅/마이 + 하단 내비 레이아웃), `app/admin/` (관리자 전용, `role==='ADMIN'` 아니면 `/login` 또는 `/pots`로 리다이렉트). `(main)` 중 `/pots`·`/pots/[id]`는 비로그인 게스트도 조회 가능하고(로그인 유도 CTA만 다르게 보임), 그 외 나머지는 로그인 세션이 없으면 `/login`으로 리다이렉트된다.
+- 라우팅은 App Router 그룹으로 분리: `app/(auth)/` (로그인/회원가입/온보딩), `app/(main)/` (공동주문/채팅/마이 + 하단 내비 레이아웃), `app/admin/` (관리자 전용, `role==='ADMIN'` 아니면 `/login` 또는 `/pots`로 리다이렉트). `(main)` 전체는 로그인 세션이 없으면 `/login`으로 리다이렉트된다 — 게스트 접근 허용은 2026-07-30 한때 시도됐다가 같은 날 다시 닫혔다(v2.7, "로그인 상태 유지" 체크박스 도입과 함께).
+- **"로그인 상태 유지" 체크박스(v2.7)**: NextAuth 세션 쿠키 자체는 30일 고정(콜백으로 로그인마다 다르게 줄 공식 방법이 없음)이라, 별도 가드 쿠키(`lib/auth-constants.ts`의 `mukmate_remember_guard`)로 흉내낸다 — 체크 시 30일 지속, 체크 해제 시 브라우저 세션 쿠키(종료 시 삭제)로 발급. `getCurrentUser()`/`getSessionUserOrNull()`이 NextAuth 세션 + 이 쿠키가 둘 다 있어야 로그인으로 인정한다.
 
 ## 기술 스택 (PRD §10-1, 확정)
 

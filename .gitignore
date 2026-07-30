@@ -12,6 +12,9 @@ __v0_jsx-dev-runtime.ts
 # Local-only docs (test credentials etc — never commit, repo is public)
 docs/*.local.md
 
+# Ad-hoc screenshots dropped at repo root for debugging — may contain personal info, never commit
+/image*.png
+
 # Common ignores
 node_modules
 .next/
