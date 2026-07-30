@@ -5,8 +5,8 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | **v2.2** (v2.1에서 신고 기능 구현 및 참여 신청/승인 API 재설계를 반영) |
-| 작성일 | 2026-07-28 (v2.1 갱신: 2026-07-29 / v2.2 갱신: 2026-07-30) |
+| 문서 버전 | **v2.3** (v2.2에서 관리자 기능 — 신고 처리·회원 제재·모집글 직권 삭제 — 신설을 반영) |
+| 작성일 | 2026-07-28 (v2.1 갱신: 2026-07-29 / v2.2 갱신: 2026-07-30 / v2.3 갱신: 2026-07-30) |
 | 기준 문서 | 팀 v1.2 + 기술 검토본 v1.1 통합 |
 | 제품 형태 | 모바일 우선 반응형 웹 MVP |
 | 기술 스택 | Next.js · Neon DB(PostgreSQL) · Vercel · 카카오 로컬 API |
@@ -53,6 +53,14 @@
 |---|---|---|
 | 신고 기능 | §17-3에서 "MVP는 미구현, 문의 창구 안내만" 결정 | **구현됨(P0으로 승격).** 채팅방에서 메시지/사용자 신고 가능. 단 신고를 검토·처리하는 관리자 화면은 아직 없음 — 접수까지만 완료 (17-3 갱신) |
 | 참여 신청/승인 API 경로 | `/api/pots/:id/applications` POST, `/api/applications/:id` PATCH (11-3) | **`/api/pots/:id/join`(POST/DELETE), `/api/pots/:id/requests`(GET), `/api/pots/:id/members/:userId`(PATCH)로 재구현.** 기존 경로·레거시 코드는 이번 정리(2026-07-30)에서 완전히 제거하고 신규 경로 하나로 통합 (11-3) |
+
+### 0-3. v2.2 → v2.3 달라진 점
+
+§17-3에 "신고를 검토·처리하는 관리자 화면·API는 아직 없다"고 남아있던 미해결 이슈를 실제로 해소하기 위해 관리자 기능을 신설했다. 정의 근거는 `docs/ADMIN_FEATURES.md`, 개발 순서는 `docs/ADMIN_ROADMAP.md` 참고.
+
+| 쟁점 | v2.2 | **v2.3 결정** |
+|---|---|---|
+| 관리자 기능 | 없음 — `report_status`/`account_status`를 바꾸는 코드 경로 자체가 없었음 | **`/admin` 경로 신설(17-4).** 관리자 권한 검증(`users.role`), 신고 처리, 회원 정지(로그인·참여·작성 전 경로에 실제 적용), 모집글 직권 삭제 4개 기능으로 범위 확정. 마스터데이터(zone) CRUD·공지사항은 이번 범위에서 제외(이유는 17-4, ADMIN_FEATURES.md 참고) |
 
 ---
 
@@ -544,6 +552,7 @@ CREATE TYPE target_type  AS ENUM ('HEADCOUNT','AMOUNT');
 CREATE TYPE account_status AS ENUM ('ACTIVE','SUSPENDED','DISABLED');
 CREATE TYPE report_reason AS ENUM ('HARASSMENT','SEXUAL_CONTENT','SPAM','FRAUD','NO_SHOW','PRIVACY','UNSAFE_MEETING','OTHER');
 CREATE TYPE report_status AS ENUM ('PENDING','REVIEWING','RESOLVED','DISMISSED');
+CREATE TYPE user_role AS ENUM ('USER','ADMIN');  -- v2.3: 관리자 기능(17-4), 부여는 DB에서 직접 처리
 
 -- 활동 지역: 코드로 관리해 추후 목록 변경이 쉽도록 분리 (17-1 확정 필요)
 CREATE TABLE zones (
@@ -558,7 +567,8 @@ CREATE TABLE users (
   password_hash text NOT NULL,                 -- 평문 저장 금지
   nickname      text NOT NULL,                 -- 타인에게 보이는 이름
   zone_code     text REFERENCES zones(code),   -- 활동 지역
-  account_status account_status NOT NULL DEFAULT 'ACTIVE',  -- v2.2: 신고 처리로 정지될 수 있음(처리 화면은 아직 없음)
+  account_status account_status NOT NULL DEFAULT 'ACTIVE',  -- v2.3: 관리자가 변경, 로그인·참여·작성 경로에서 실제로 적용됨(17-4)
+  role          user_role NOT NULL DEFAULT 'USER',           -- v2.3: 관리자 권한 검증(17-4)
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 
@@ -653,7 +663,7 @@ CREATE INDEX idx_reports_status_created ON reports (status, created_at);
 - 모집자 본인도 `participations`에 `APPROVED` 행으로 넣으면 인원 계산과 채팅 권한 검사가 단순해진다.
 - **계좌 정보 컬럼은 두지 않는다.** 금융정보 보관 리스크를 피하고, 정산 안내는 채팅 메시지로 처리한다.
 - `zones`를 테이블로 분리한 이유는 활동 지역 목록이 아직 확정되지 않았기 때문이다 (17-1).
-- **v2.2**: `reports`는 접수만 하고 `status`를 사람이 검토해 바꾸는 관리자 화면·API는 아직 없다 — `PENDING`으로 계속 쌓이기만 한다. `users.account_status`도 마찬가지로 값을 바꾸는 코드 경로가 아직 없다.
+- **v2.3**: `reports.status`와 `users.account_status`를 사람이 검토해 바꾸는 관리자 화면·API를 신설한다(`/admin/reports`, 17-4). `users.role`은 관리자 권한 검증 전용 컬럼이며, 셀프서비스로 바꿀 수 없다(DB에서 직접 부여).
 
 ### 11-3. 주요 API 엔드포인트
 
@@ -668,6 +678,7 @@ CREATE INDEX idx_reports_status_created ON reports (status, created_at);
 | POST | `/api/pots` | 모집글 작성 | 로그인 |
 | GET | `/api/pots/:id` | 상세 + 참여자 + (P1) 분담 계산 | 공개 |
 | PATCH | `/api/pots/:id` | 모집글 수정 / 상태 변경 | **모집자만** |
+| DELETE | `/api/pots/:id` | 모집글 삭제 — 참여자(대기중 포함) 0명일 때만 (v2.3) | **모집자만** |
 | POST / DELETE | `/api/pots/:id/join` | 참여 신청 / 신청 취소·나가기 (v2.2, FEAT-06) | 로그인 |
 | GET | `/api/pots/:id/requests` | 대기 중인 참여 신청 목록 (v2.2, FEAT-06) | **모집자만** |
 | PATCH | `/api/pots/:id/members/:userId` | 승인 / 거절 — `userId` 기준 (v2.2, FEAT-06) | **모집자만** |
@@ -676,10 +687,17 @@ CREATE INDEX idx_reports_status_created ON reports (status, created_at);
 | GET | `/api/rooms/:id/messages?after=` | 증분 메시지 조회 (폴링) | **참여자만** |
 | POST | `/api/rooms/:id/messages` | 메시지 전송 | **참여자만** |
 | POST | `/api/reports` | 메시지 / 사용자 신고 접수 (v2.2, CHAT-08) | 로그인 |
+| GET | `/api/admin/reports?status=` | 신고 목록 조회 (v2.3, 17-4) | **관리자만** |
+| PATCH | `/api/admin/reports/:id` | 신고 상태·메모 변경 (v2.3, 17-4) | **관리자만** |
+| PATCH | `/api/admin/users/:id` | 계정 상태(`account_status`) 변경 (v2.3, 17-4) | **관리자만** |
+| GET | `/api/admin/pots?q=` | 전체 모집글 목록/검색 — zone 무관 (v2.3, 17-4) | **관리자만** |
+| DELETE | `/api/admin/pots/:id` | 모집글 직권 삭제 — 참여자/방장 조건 무시 (v2.3, 17-4) | **관리자만** |
 
 > **2026-07-30 정리 완료**: 참여 신청/승인 경로가 신규(`join`/`members`/`requests`)와 레거시(`participations`/`applications`) 두 벌로 공존하던 문제를 해결 — 레거시 경로(`POST /api/pots/:id/participations`, `PATCH /api/applications/:id`)와 이를 쓰던 죽은 코드(`lib/api.ts`의 `applyToPot`/`updateApplicationStatus`)를 제거하고, 화면 #7(`참여 신청자 관리`)도 신규 `members` 경로로 옮겨 지금은 참여 승인/거절 로직이 한 곳으로 통합돼 있다.
 
 > 채팅방 접근 권한(CHAT-01)은 **모든 메시지 API에서 매 요청마다 서버가 검사**한다. 화면에서 버튼을 숨기는 것만으로는 요구사항을 충족하지 못한다.
+
+> 관리자 라우트(`/api/admin/*`)는 세션이 있어도 `users.role === 'ADMIN'`이 아니면 403을 반환한다 — 페이지 레이아웃의 리다이렉트 가드는 API 라우트에는 적용되지 않으므로 각 핸들러가 직접 검사한다(17-4).
 
 ---
 
@@ -816,13 +834,28 @@ MVP는 화면만 연결된 프로토타입이 아니라, **서로 다른 계정�
 1. `오늘 뭐 먹지 · 맛집 추천`
 2. `같이 먹어요 · 음식 여행`
 
-### 17-3. 신고와 제재 정책 (v2.2: 확정 — 구현됨)
+### 17-3. 신고와 제재 정책 (v2.2: 확정 — 구현됨 / v2.3: 처리 화면 신설)
 
 애초 제안은 "MVP에서는 기능을 만들지 않고 운영 규칙·문의 창구만 안내"였으나, 실제로는 채팅방에서 메시지·사용자를 신고하는 기능(CHAT-08)까지 구현됐다. 확정된 범위는 다음과 같다.
 
 - 채팅방에서 메시지 또는 사용자를 신고하면 `reports` 테이블에 `PENDING` 상태로 접수된다(§11-2). 자기 자신 신고 금지, 같은 메시지 중복 신고 금지.
-- **신고를 검토·처리하는 관리자 화면·API는 아직 없다.** `report_status`(`REVIEWING`/`RESOLVED`/`DISMISSED`)와 `users.account_status`(`SUSPENDED`/`DISABLED`)는 스키마에 있지만 값을 바꾸는 코드 경로가 없어, 신고가 쌓이기만 하고 실제 계정 제재로는 이어지지 않는다.
-- 관리자 처리 화면·자동 제재·평점 시스템은 여전히 다음 버전 과제로 남는다.
+- **신고를 검토·처리하는 관리자 화면·API는 17-4에서 신설한다.** `report_status`(`REVIEWING`/`RESOLVED`/`DISMISSED`)와 `users.account_status`(`SUSPENDED`/`DISABLED`)를 실제로 바꾸는 코드 경로를 이번 버전에서 추가한다.
+- 자동 제재·평점 시스템은 여전히 다음 버전 과제로 남는다.
+
+### 17-4. 관리자 기능 (v2.3 신규)
+
+정의 근거·제외 범위의 상세 이유는 `docs/ADMIN_FEATURES.md`, 개발 로드맵은 `docs/ADMIN_ROADMAP.md`를 단일 소스로 참고한다. 요약:
+
+**확정 범위 (4개)**
+1. **관리자 권한 검증** — `users.role`(`USER`/`ADMIN`, 기본 `USER`) 컬럼 추가. 별도 RBAC 테이블 없이 단일 컬럼으로 처리(운영자 1~2명 규모에 맞춤). 관리자 부여는 셀프서비스 없이 DB에서 직접 처리. `/admin` 이하 페이지·`/api/admin/*` 라우트 모두 서버에서 `role === 'ADMIN'` 검사.
+2. **신고 처리** — `/admin/reports`에서 신고 목록 조회, 상태(`REVIEWING`/`RESOLVED`/`DISMISSED`) 변경, `admin_note`/`reviewed_at` 기록. 신고 상세에서 바로 회원 정지 액션 실행 가능.
+3. **회원 상태 제어(제재/정지)** — `account_status`를 관리자가 변경. **v2.2까지는 채팅 메시지 전송(CHAT-15)에만 이 값이 적용됐다** — 로그인·참여 신청·모집글 작성에는 체크가 없어 "정지"가 실질적 효력이 없었다. v2.3에서 로그인(Credentials `authorize`), `POST /api/pots/:id/join`, `POST /api/pots`까지 검사를 확장해 실제로 이용을 막는다.
+4. **모집글 직권 삭제** — `DELETE /api/admin/pots/:id`. 일반 사용자용 삭제(방장 전용 + 참여자 0명 조건, §11-3)와 별도 경로로 분리해, 참여자·방장 동의 여부와 무관하게 관리자가 즉시 삭제 가능.
+
+**이번 범위에서 제외 (+ 이유)**
+- **마스터데이터(활동 지역 zone) CRUD** — §17-1에서 4개 권역이 이미 확정·고정됨. 관리자가 임의로 추가/삭제하게 하면 그 결정을 무력화한다.
+- **공지사항 작성/수정** — PRD에 없던 신규 기능이라 이번 범위(신고 처리 공백 해소)와 무관해 제외.
+- **신고와 무관한 직권 조치용 별도 감사 로그 테이블** — 신고 기반 조치는 `admin_note`/`reviewed_at`으로 이미 추적 가능. 그 밖의 감사 로그는 이번 MVP 바를 넘는 범위.
 
 ---
 
