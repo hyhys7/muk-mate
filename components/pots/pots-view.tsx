@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { Check, ChevronDown, Plus, Search, ShoppingBag } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { NotificationBell } from '@/components/notification-bell'
 import { PotCard } from '@/components/pots/pot-card'
