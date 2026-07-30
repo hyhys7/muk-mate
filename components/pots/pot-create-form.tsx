@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { PlaceSearchDialog } from '@/components/pots/place-search-dialog'
+import { KakaoMapPreview } from '@/components/pots/kakao-map-preview'
 
 const DEADLINE_OPTIONS = [
   { label: '15분 후', value: 15 },
@@ -362,6 +363,8 @@ export function PotCreateForm() {
             place={pickup}
             onOpen={() => setPickupDialogOpen(true)}
           />
+
+          {pickup && <KakaoMapPreview lat={pickup.lat} lng={pickup.lng} name={pickup.name} />}
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-muted-foreground">수령 관련 전달사항 (선택)</label>
