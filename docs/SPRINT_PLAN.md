@@ -197,6 +197,43 @@ Phase 7 "완료" 커밋(`0e89673`~`9f38fa4` 이전 이력) 이후에도 커밋�
 - [x] 레거시 라우트 `app/api/pots/[id]/participations/route.ts`, `app/api/applications/[id]/route.ts` 삭제
 - [x] `lib/api.ts`의 죽은 코드 `applyToPot`/`updateApplicationStatus` 제거
 - [x] 고아 마이그레이션 `migrations/006_join_approval.sql` 삭제, 유효했던 부분(대기 신청 조회용 부분 인덱스)만 `lib/db/schema.ts`에 정식 반영 후 `drizzle-kit generate` + `db:push`로 재적용 — `drizzle/0002_empty_martin_li.sql`로 마이그레이션 이력도 실제 DB 상태와 재동기화됨
-- [ ] 신고(`reports`) 처리 관리자 화면·API는 여전히 없음 — 별도 작업으로 남김 (PRD §17-3)
+- [x] 신고(`reports`) 처리 관리자 화면·API 완료 — 아래 "관리자 기능(v2.3~v2.4)" 절 참고 (PRD §17-4)
+
+---
+
+## Phase 7 이후 — 2026-07-30 세션 작업 (버그 수정 → 모집글 기능 3종 → 관리자 기능)
+
+### 1. `/pots` 런타임 크래시 수정 + 배포 정리
+
+- [x] `components/pots/pots-view.tsx`에서 `ChevronDown`/`Check`/`Search`/`Plus`/`ShoppingBag`(lucide-react) import 누락으로 `/pots` 서버 렌더링이 `ReferenceError`로 크래시하던 버그 수정
+- [x] 프로젝트 전체 `tsc --noEmit` 스캔으로 동일 문제 없음을 확인 (JSX 미정의 식별자는 타입체크가 항상 잡아낸다는 것 확인)
+- [x] 버그가 박제되어 있던 옛날 배포 고유 URL(`muk-mate-rboaam9oi-...vercel.app`)을 `vercel remove`로 정리 — Vercel은 배포마다 영구 고유 URL을 부여하므로 이후 코드를 고쳐도 이미 발급된 옛날 URL은 절대 최신화되지 않는다는 점 확인, `muk-mate.vercel.app`(별칭 도메인)만 공유하도록 정리
+- 상세 기록: `docs/BACKLOG.md` "완료/검증됨" 절
+
+### 2. 참여하기 버튼이 실제로 안 보이던 문제 (다른 세션에서 수정, 이번 세션에서 검증)
+
+- [x] `(main)` 레이아웃이 비로그인 사용자를 무조건 `/login`으로 리다이렉트해 게스트가 모집글 상세를 아예 못 보던 문제 → `app/(main)/pots/page.tsx`, `app/(main)/pots/[id]/page.tsx`를 `getSessionUserOrNull()` 기반으로 변경, 게스트도 목록/상세를 보고 "로그인하고 참여하기" CTA를 보게 함
+- [x] 하단 네비게이션 바가 상세 페이지 하단 고정 참여하기 버튼을 시각적으로 가리던 문제 → `components/bottom-nav.tsx`가 `/pots`·`/chat`·`/my` 정확히 일치하는 경로에서만 표시되도록 변경
+- [x] 참여 신청 → 방장 알림 플로우(`APPLICATION_SUBMITTED`/`APPLICATION_RECEIVED`)가 실제로 동작하는지 curl로 회원가입→로그인→신청→취소까지 프로덕션에서 전체 재현 검증
+- 상세 기록: `docs/BACKLOG.md`
+
+### 3. 모집글 삭제 · 공유 · 검색 3개 기능 신설
+
+- [x] `DELETE /api/pots/:id` — 방장 전용, 참여자(대기중 포함, 방장 본인의 자동 APPROVED 행은 제외)가 0명일 때만 삭제 가능
+  - 구현 중 발견한 버그: 모집글 생성 시 방장 본인이 자동으로 `APPROVED` 참여자로 등록되는 기존 설계(`POST /api/pots`) 때문에 첫 구현에서는 방장이 자기 글을 영원히 못 지우는 버그가 있었음 → 삭제 가드에서 방장 본인 행을 제외하도록 수정
+- [x] 공유 버튼 — `navigator.share()` 우선, 미지원 브라우저는 클립보드 복사로 폴백
+  - 구현 중 발견한 버그: 로그인 페이지가 `next` 쿼리 파라미터를 무시해서, 공유링크로 들어온 게스트가 로그인해도 원래 모집글로 못 돌아오던 문제 → `useSearchParams()`로 읽어 내부 경로면 그쪽으로 리다이렉트하도록 수정(정적 프리렌더링과 충돌해 `<Suspense>`로 래핑)
+- [x] 돋보기(검색) 버튼 — 현재 선택된 권역(zone) 내에서 가게명·메뉴 텍스트로 클라이언트 사이드 필터링 (백엔드 변경 없음)
+- 상세 기록: `docs/BACKLOG.md`, PRD §8-2 ORDER-13/14/15
+
+### 4. 관리자 기능 신설 (Sprint 1~3)
+
+MVP 배포를 위한 최소 관리자 기능을 별도 문서로 먼저 정의하고(`docs/ADMIN_FEATURES.md`), PRD v2.3(§17-4)에 반영한 뒤, `docs/ADMIN_ROADMAP.md`의 3개 스프린트로 나눠 구현·배포·검증했다.
+
+- [x] **Sprint 1 — 기반**: `users.role`(`USER`/`ADMIN`) 컬럼, `/admin` 서버 가드(비로그인→`/login`, 비관리자→`/pots`), 회원 정지(`account_status`)가 채팅 전송뿐 아니라 로그인·참여신청·모집글작성 전 경로에 실제로 적용되도록 확장. 부수 발견: `Error`를 던지면 Auth.js가 "Configuration"으로 마스킹해버려 커스텀 에러 코드가 안 보이던 문제 → `CredentialsSignin` 서브클래스로 해결. 겸사겸사 오래 방치돼 있던 고아 컬럼(`participations.decided_at`/`decided_by`, 전부 NULL)도 이번에 실제로 제거
+- [x] **Sprint 2 — 신고 처리**: `/admin/reports` 신고함(상태 필터·상세·상태 변경·정지 액션), `PATCH /api/admin/reports/:id`, `PATCH /api/admin/users/:id`(자기 자신 정지 방지 가드 포함)
+- [x] **Sprint 3 — 모집글 직권 삭제**: `/admin/pots`(검색+삭제), `DELETE /api/admin/pots/:id` — 참여자·방장 조건 무시하고 즉시 삭제, cascade로 참여/채팅방/알림도 정리됨
+- [x] 전체 플로우를 실제 계정으로 프로덕션에서 재현 검증(신고 접수→관리자 처리→회원 정지→로그인/참여/작성/채팅 전부 차단 확인 포함) 후 사람 확인까지 완료
+- 상세 기록: `docs/ADMIN_FEATURES.md`(정의·제외 범위), `docs/ADMIN_ROADMAP.md`(스프린트별 체크리스트·검증 기록), PRD §17-4
 
 ---
