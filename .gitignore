@@ -9,6 +9,9 @@ __v0_jsx-dev-runtime.ts
 # Environment variables
 .env*.local
 
+# Local-only docs (test credentials etc — never commit, repo is public)
+docs/*.local.md
+
 # Common ignores
 node_modules
 .next/
