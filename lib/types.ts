@@ -1,6 +1,9 @@
 // 먹메이트(MukMate) 도메인 타입 정의
 // 모든 화면/컴포넌트는 이 타입을 기준으로 데이터를 주고받는다.
 
+import type { ViewerState } from '@/types/pot-member'
+
+export type { ViewerState }
 export type PotStatus = 'OPEN' | 'CLOSED' | 'ORDERED' | 'CANCELED'
 export type Approval = 'PENDING' | 'APPROVED' | 'REJECTED'
 export type TargetType = 'HEADCOUNT' | 'AMOUNT'
@@ -67,6 +70,8 @@ export interface Pot {
   status: PotStatus
   isLocationVerified: boolean
   distanceMeters: number
+  viewerState?: ViewerState
+  approvedCount?: number
   pendingCount?: number
   chatRoomId?: string
   createdAt: string

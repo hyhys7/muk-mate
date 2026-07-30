@@ -56,18 +56,54 @@ export async function updatePotStatus(potId: string, status: PotStatus): Promise
   return data.pot
 }
 
-/** 참여 신청 — POST /api/pots/:id/participations */
-export async function applyToPot(potId: string, applyMessage: string): Promise<Participation> {
-  const res = await fetch(`/api/pots/${potId}/participations`, {
+/** 참여 신청 — POST /api/pots/:id/join */
+export async function requestJoinPot(potId: string, menuMemo?: string): Promise<Participation> {
+  const res = await fetch(`/api/pots/${potId}/join`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ applyMessage }),
+    body: JSON.stringify({ menuMemo }),
   })
   const data = await parseJsonResponse<{ participation: Participation }>(res)
   return data.participation
 }
 
-/** 참여 신청 승인/거절 — PATCH /api/applications/:id, 모집자 전용 */
+/** 참여 신청 취소 / 나갈 때 — DELETE /api/pots/:id/join */
+export async function cancelJoinPot(potId: string): Promise<void> {
+  const res = await fetch(`/api/pots/${potId}/join`, {
+    method: 'DELETE',
+  })
+  await parseJsonResponse<{ ok: boolean }>(res)
+}
+
+/** 호스트 수락/거절 — PATCH /api/pots/:id/members/:userId */
+export async function decideMemberApplication(
+  potId: string,
+  targetUserId: string,
+  action: 'approve' | 'reject',
+): Promise<Participation> {
+  const res = await fetch(`/api/pots/${potId}/members/${targetUserId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  })
+  const data = await parseJsonResponse<{ participation: Participation }>(res)
+  return data.participation
+}
+
+/** 방장용 신청 목록 조회 — GET /api/pots/:id/requests */
+export async function getPotRequests(
+  potId: string,
+): Promise<{ items: { userId: string; nickname: string; menuMemo: string; requestedAt: string }[] }> {
+  const res = await fetch(`/api/pots/${potId}/requests`)
+  return parseJsonResponse(res)
+}
+
+/** 기존 호환 참여 신청 — POST /api/pots/:id/participations */
+export async function applyToPot(potId: string, applyMessage: string): Promise<Participation> {
+  return requestJoinPot(potId, applyMessage)
+}
+
+/** 기존 호환 참여 신청 승인/거절 — PATCH /api/applications/:id, 모집자 전용 */
 export async function updateApplicationStatus(
   applicationId: string,
   action: 'APPROVE' | 'REJECT',

@@ -1,63 +1,103 @@
-"use client"
+'use client'
 
-import { useRouter } from "next/navigation"
-import { useState } from "react"
-import { ArrowLeft, Clock, MapPin, Share2, ShieldCheck, Truck, Users } from "lucide-react"
-import { StoreAvatar } from "@/components/store-avatar"
-import { PotStatusBadge, ApprovalBadge } from "@/components/status-badge"
-import { Progress } from "@/components/ui/progress"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
+import { ArrowLeft, Clock, MapPin, Share2, ShieldCheck, Truck, Users } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+
+import { JoinButton } from '@/components/pots/join-button'
+import { JoinConfirmSheet } from '@/components/pots/join-confirm-sheet'
+import { PendingRequest, RequestList } from '@/components/pots/request-list'
+import { ApprovalBadge, PotStatusBadge } from '@/components/status-badge'
+import { StoreAvatar } from '@/components/store-avatar'
+import { Progress } from '@/components/ui/progress'
+import { cancelJoinPot, decideMemberApplication, requestJoinPot, updatePotStatus } from '@/lib/api'
+import { zoneLabel } from '@/lib/constants'
 import {
   formatDateTime,
   formatDeadline,
   formatDistance,
   formatWon,
-} from "@/lib/format"
-import { zoneLabel } from "@/lib/constants"
-import { applyToPot } from "@/lib/api"
-import type { Participation, Pot } from "@/lib/types"
-import { cn } from "@/lib/utils"
+} from '@/lib/format'
+import type { Participation, Pot } from '@/lib/types'
+import { cn } from '@/lib/utils'
+import type { ViewerState } from '@/types/pot-member'
 
 export function PotDetailView({
   pot,
   participations,
+  initialRequests = [],
   isHost,
 }: {
   pot: Pot
   participations: Participation[]
+  initialRequests?: PendingRequest[]
   isHost: boolean
 }) {
   const router = useRouter()
-  const [applied, setApplied] = useState(false)
-  const [showApplyForm, setShowApplyForm] = useState(false)
-  const [applyMessage, setApplyMessage] = useState("")
-  const [applying, setApplying] = useState(false)
-  const [applyError, setApplyError] = useState<string | null>(null)
+  const [viewerState, setViewerState] = useState<ViewerState>(
+    pot.viewerState ?? (isHost ? 'HOST' : 'JOINABLE'),
+  )
+  const [requests, setRequests] = useState<PendingRequest[]>(initialRequests)
+  const [showConfirmSheet, setShowConfirmSheet] = useState(false)
+  const [loading, setLoading] = useState(false)
 
-  async function handleApply() {
-    setApplying(true)
-    setApplyError(null)
+  const deadline = formatDeadline(pot.deadlineAt)
+  const isAmount = pot.targetType === 'AMOUNT'
+  const amount = pot.currentAmount ?? 0
+  const approvedCount = pot.approvedCount ?? pot.currentCount
+  const isFull = approvedCount >= pot.targetValue
+
+  const progress = isAmount
+    ? Math.min((amount / pot.targetValue) * 100, 100)
+    : Math.min((approvedCount / pot.targetValue) * 100, 100)
+
+  const approved = participations.filter((p) => p.approvalStatus === 'APPROVED')
+
+  async function handleJoinSubmit(menuMemo: string) {
+    setLoading(true)
     try {
-      await applyToPot(pot.id, applyMessage.trim())
-      setApplied(true)
-      setShowApplyForm(false)
+      await requestJoinPot(pot.id, menuMemo)
+      setViewerState('PENDING')
       router.refresh()
-    } catch (err) {
-      setApplyError(err instanceof Error ? err.message : "참여 신청에 실패했어요.")
     } finally {
-      setApplying(false)
+      setLoading(false)
     }
   }
 
-  const deadline = formatDeadline(pot.deadlineAt)
-  const isAmount = pot.targetType === "AMOUNT"
-  const amount = pot.currentAmount ?? 0
-  const progress = isAmount
-    ? Math.min((amount / pot.targetValue) * 100, 100)
-    : Math.min((pot.currentCount / pot.targetValue) * 100, 100)
-  const approved = participations.filter((p) => p.approvalStatus === "APPROVED")
-  const canApply = pot.status === "OPEN" && !deadline.expired && !isHost
+  async function handleCancelRequest() {
+    setLoading(true)
+    try {
+      await cancelJoinPot(pot.id)
+      setViewerState('JOINABLE')
+      router.refresh()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleApproveRequest(userId: string) {
+    await decideMemberApplication(pot.id, userId, 'approve')
+    setRequests((prev) => prev.filter((r) => r.userId !== userId))
+    router.refresh()
+  }
+
+  async function handleRejectRequest(userId: string) {
+    await decideMemberApplication(pot.id, userId, 'reject')
+    setRequests((prev) => prev.filter((r) => r.userId !== userId))
+    router.refresh()
+  }
+
+  async function handleHostClose() {
+    if (confirm('모집을 마감하시겠습니까?')) {
+      setLoading(true)
+      try {
+        await updatePotStatus(pot.id, 'CLOSED')
+        router.refresh()
+      } finally {
+        setLoading(false)
+      }
+    }
+  }
 
   return (
     <div className="flex flex-1 flex-col pb-28">
@@ -99,6 +139,16 @@ export function PotDetailView({
         </div>
       </section>
 
+      {/* 방장용 참여 신청 목록 섹션 */}
+      {isHost && (
+        <RequestList
+          requests={requests}
+          isFull={isFull}
+          onApprove={handleApproveRequest}
+          onReject={handleRejectRequest}
+        />
+      )}
+
       {/* 주문 내용 */}
       <section className="border-t border-border px-4 py-4">
         <h2 className="text-sm font-bold text-muted-foreground">주문 내용</h2>
@@ -118,8 +168,8 @@ export function PotDetailView({
           <h2 className="text-sm font-bold text-muted-foreground">모집 현황</h2>
           <span
             className={cn(
-              "inline-flex items-center gap-1 text-sm font-semibold",
-              deadline.urgent ? "text-destructive" : "text-foreground",
+              'inline-flex items-center gap-1 text-sm font-semibold',
+              deadline.urgent ? 'text-destructive' : 'text-foreground',
             )}
           >
             <Clock className="size-4" />
@@ -138,7 +188,7 @@ export function PotDetailView({
               </span>
             ) : (
               <span className="text-lg font-bold tabular-nums text-foreground">
-                {pot.currentCount}명
+                {approvedCount}명
                 <span className="ml-1 text-sm font-medium text-muted-foreground">
                   / {pot.targetValue}명
                 </span>
@@ -231,60 +281,21 @@ export function PotDetailView({
       </section>
 
       {/* 하단 고정 CTA */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30">
-        <div className="pointer-events-auto mx-auto max-w-[430px] border-t border-border bg-background/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
-          {isHost ? (
-            <Button
-              className="h-12 w-full rounded-xl text-base font-bold"
-              onClick={() => router.push(`/pots/${pot.id}/applications`)}
-            >
-              신청자 관리 ({participations.filter((p) => p.approvalStatus === "PENDING").length})
-            </Button>
-          ) : canApply ? (
-            showApplyForm ? (
-              <div className="flex flex-col gap-2">
-                {applyError && <p className="text-sm text-destructive">{applyError}</p>}
-                <Textarea
-                  value={applyMessage}
-                  onChange={(e) => setApplyMessage(e.target.value)}
-                  placeholder="참여 메시지를 짧게 남겨주세요 (선택)"
-                  maxLength={200}
-                  className="min-h-[70px] rounded-xl"
-                />
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="h-12 flex-1 rounded-xl text-base font-bold"
-                    onClick={() => setShowApplyForm(false)}
-                    disabled={applying}
-                  >
-                    취소
-                  </Button>
-                  <Button
-                    className="h-12 flex-[2] rounded-xl text-base font-bold"
-                    onClick={handleApply}
-                    disabled={applying}
-                  >
-                    {applying ? "신청하는 중..." : "신청 보내기"}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button
-                className="h-12 w-full rounded-xl text-base font-bold"
-                disabled={applied}
-                onClick={() => setShowApplyForm(true)}
-              >
-                {applied ? "신청 완료 — 승인 대기중" : "참여 신청하기"}
-              </Button>
-            )
-          ) : (
-            <Button className="h-12 w-full rounded-xl text-base font-bold" disabled>
-              {deadline.expired ? "마감된 공동주문이에요" : "참여할 수 없어요"}
-            </Button>
-          )}
-        </div>
-      </div>
+      <JoinButton
+        potId={pot.id}
+        viewerState={viewerState}
+        loading={loading}
+        onOpenConfirmSheet={() => setShowConfirmSheet(true)}
+        onCancelRequest={handleCancelRequest}
+        onHostAction={handleHostClose}
+      />
+
+      {/* 참여 신청 확인 시트 */}
+      <JoinConfirmSheet
+        isOpen={showConfirmSheet}
+        onClose={() => setShowConfirmSheet(false)}
+        onSubmit={handleJoinSubmit}
+      />
     </div>
   )
 }

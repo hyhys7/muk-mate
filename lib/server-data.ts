@@ -7,6 +7,7 @@ import { auth } from '@/auth'
 import { getDb } from '@/lib/db'
 import { chatRooms, messages, participations, pots, users } from '@/lib/db/schema'
 import { formatDateTime } from '@/lib/format'
+import { resolveViewerState } from '@/lib/pots/viewer-state'
 import type {
   ChatRoom,
   Message,
@@ -152,7 +153,7 @@ export async function listPots(filter?: { zone?: string; status?: string }): Pro
   return result
 }
 
-export async function getPotById(id: string): Promise<Pot | undefined> {
+export async function getPotById(id: string, viewerId?: string | null): Promise<Pot | undefined> {
   const db = getDb()
 
   const [row] = (await db
@@ -165,7 +166,31 @@ export async function getPotById(id: string): Promise<Pot | undefined> {
   if (!row) return undefined
 
   const agg = await getApprovedAggregates([id])
-  return mapPotRow(row, agg.get(id) ?? { count: 0, amount: 0 })
+  const pot = mapPotRow(row, agg.get(id) ?? { count: 0, amount: 0 })
+
+  let myApprovalStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | null = null
+  if (viewerId) {
+    const [myPart] = await db
+      .select({ approvalStatus: participations.approvalStatus })
+      .from(participations)
+      .where(and(eq(participations.potId, id), eq(participations.userId, viewerId)))
+      .limit(1)
+    if (myPart) {
+      myApprovalStatus = myPart.approvalStatus
+    }
+  }
+
+  pot.approvedCount = pot.currentCount
+  pot.viewerState = resolveViewerState({
+    userId: viewerId,
+    hostId: pot.hostId,
+    potStatus: pot.status,
+    myApprovalStatus,
+    approvedCount: pot.currentCount,
+    maxPeople: pot.targetValue,
+  })
+
+  return pot
 }
 
 async function getPotsByIds(ids: string[]): Promise<Map<string, Pot>> {
@@ -342,6 +367,39 @@ export async function getParticipationsForPot(potId: string, viewerId: string | 
       approvalStatus: r.approvalStatus,
       createdAt: r.createdAt.toISOString(),
     }))
+}
+
+export async function getPendingRequestsForPot(potId: string): Promise<{
+  userId: string
+  nickname: string
+  menuMemo: string
+  requestedAt: string
+}[]> {
+  const db = getDb()
+
+  const rows = await db
+    .select({
+      userId: participations.userId,
+      nickname: users.nickname,
+      applyMessage: participations.applyMessage,
+      requestedAt: participations.createdAt,
+    })
+    .from(participations)
+    .innerJoin(users, eq(participations.userId, users.id))
+    .where(
+      and(
+        eq(participations.potId, potId),
+        eq(participations.approvalStatus, 'PENDING'),
+      ),
+    )
+    .orderBy(desc(participations.createdAt))
+
+  return rows.map((r) => ({
+    userId: r.userId,
+    nickname: r.nickname,
+    menuMemo: r.applyMessage ?? '',
+    requestedAt: r.requestedAt.toISOString(),
+  }))
 }
 
 /** 로그인된 사용자 정보. 세션이 없으면 로그인 화면으로 보낸다 — (main) 구간은 전부 로그인 전제. */

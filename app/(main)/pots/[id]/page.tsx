@@ -1,6 +1,6 @@
-import { notFound } from "next/navigation"
-import { PotDetailView } from "@/components/pots/pot-detail-view"
-import { getCurrentUser, getParticipationsForPot, getPotById } from "@/lib/server-data"
+import { notFound } from 'next/navigation'
+import { PotDetailView } from '@/components/pots/pot-detail-view'
+import { getCurrentUser, getParticipationsForPot, getPendingRequestsForPot, getPotById } from '@/lib/server-data'
 
 export default async function PotDetailPage({
   params,
@@ -9,14 +9,23 @@ export default async function PotDetailPage({
 }) {
   const { id } = await params
   const me = await getCurrentUser()
+
   const [pot, participations] = await Promise.all([
-    getPotById(id),
+    getPotById(id, me.id),
     getParticipationsForPot(id, me.id),
   ])
 
   if (!pot) notFound()
 
+  const isHost = pot.hostId === me.id
+  const pendingRequests = isHost ? await getPendingRequestsForPot(id) : []
+
   return (
-    <PotDetailView pot={pot} participations={participations} isHost={pot.hostId === me.id} />
+    <PotDetailView
+      pot={pot}
+      participations={participations}
+      initialRequests={pendingRequests}
+      isHost={isHost}
+    />
   )
 }
