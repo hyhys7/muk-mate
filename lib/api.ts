@@ -5,7 +5,7 @@
 // 빌드가 깨진다. 서버 컴포넌트가 필요로 하는 조회는 lib/server-data.ts를 쓴다.
 //
 // ─────────────────────────────────────────────────────────────
-import type { AppNotification, Message, Participation, Place, Pot, PotStatus, ZoneCode } from '@/lib/types'
+import type { AppNotification, Message, Participation, Place, Pot, PotStatus, RoomReadEntry, ZoneCode } from '@/lib/types'
 
 async function parseJsonResponse<T>(res: Response): Promise<T> {
   const data = await res.json().catch(() => null)
@@ -131,9 +131,12 @@ export async function changePassword(input: { currentPassword: string; newPasswo
 }
 
 /** 채팅 메시지 증분 조회(폴링) — GET /api/rooms/:id/messages?after= */
-export async function getMessages(roomId: string, afterId = 0): Promise<Message[]> {
+export async function getMessages(
+  roomId: string,
+  afterId = 0,
+): Promise<{ messages: Message[]; reads: RoomReadEntry[] }> {
   const res = await fetch(`/api/rooms/${roomId}/messages?after=${afterId}`)
-  return parseJsonResponse<Message[]>(res)
+  return parseJsonResponse<{ messages: Message[]; reads: RoomReadEntry[] }>(res)
 }
 
 /** 메시지 전송 — POST /api/rooms/:id/messages */

@@ -31,19 +31,28 @@ import {
 import { getMessages, sendMessage } from '@/lib/api'
 import { formatClock, formatDateDivider, formatDateTime, isSameDay } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import type { Message, RoomAccess } from '@/lib/types'
+import type { Message, RoomAccess, RoomReadEntry } from '@/lib/types'
 
 const POLL_INTERVAL_MS = 2500
+
+/** 읽음 표시(v2.5) — 이 메시지를 보낸 사람을 제외한 참여자 중 아직 안 읽은 인원수 (카카오톡 그룹채팅 방식) */
+function unreadCountFor(message: Message, reads: RoomReadEntry[]): number {
+  const msgId = Number(message.id)
+  return reads.filter((r) => r.userId !== message.senderId && r.lastReadMessageId < msgId).length
+}
 
 export function ChatRoomView({
   room,
   initialMessages,
+  initialReads = [],
 }: {
   room: RoomAccess
   initialMessages: Message[]
+  initialReads?: RoomReadEntry[]
 }) {
   const router = useRouter()
   const [messages, setMessages] = useState<Message[]>(initialMessages)
+  const [reads, setReads] = useState<RoomReadEntry[]>(initialReads)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -86,12 +95,15 @@ export function ChatRoomView({
     setUnreadNewCount(0)
   }
 
-  // 폴링: 2.5초 간격 증분 조회
+  // 폴링: 2.5초 간격 증분 조회. 새 메시지가 없어도 읽음 커서(reads)는 매번 갱신한다 —
+  // 상대방이 읽기만 하고 새 메시지를 안 보냈어도 내 화면의 안읽음 숫자가 줄어야 하기 때문.
   useEffect(() => {
     const interval = setInterval(async () => {
       if (document.hidden) return
       try {
-        const fresh = await getMessages(room.id, lastIdRef.current)
+        const { messages: fresh, reads: freshReads } = await getMessages(room.id, lastIdRef.current)
+        setReads(freshReads)
+
         if (fresh.length === 0) return
 
         lastIdRef.current = Number(fresh[fresh.length - 1].id)
@@ -291,6 +303,7 @@ export function ChatRoomView({
           }
 
           const showNickname = !m.isMine && (!prev || prev.senderId !== m.senderId || showDivider)
+          const unreadCount = room.type === 'ORDER' ? unreadCountFor(m, reads) : 0
 
           return (
             <div key={m.id}>
@@ -310,7 +323,12 @@ export function ChatRoomView({
                   >
                     {m.content}
                   </div>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">{formatClock(m.createdAt)}</span>
+                  <div className="flex shrink-0 flex-col items-center gap-0.5">
+                    {unreadCount > 0 && (
+                      <span className="text-[10px] font-bold leading-none text-primary">{unreadCount}</span>
+                    )}
+                    <span className="text-[11px] leading-none text-muted-foreground">{formatClock(m.createdAt)}</span>
+                  </div>
 
                   {/* 타인 메시지 신고 버튼 (§7-1) */}
                   {!m.isMine && (

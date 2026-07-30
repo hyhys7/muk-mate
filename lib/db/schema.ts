@@ -154,6 +154,25 @@ export const messages = pgTable(
   (table) => [index('idx_messages_room').on(table.roomId, table.id)],
 )
 
+// 읽음 표시(v2.5) — 주문 채팅방(ORDER) 한정. 커뮤니티 채팅방은 참여자 개념이 없어 대상에서 제외.
+// 참여자별로 "이 방에서 마지막으로 읽은 메시지 id"만 저장하고, 메시지별 안읽은 인원수는
+// 클라이언트가 messages.id와 비교해 계산한다(카카오톡 그룹채팅 방식).
+export const roomReads = pgTable(
+  'room_reads',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    roomId: uuid('room_id')
+      .notNull()
+      .references(() => chatRooms.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    lastReadMessageId: bigint('last_read_message_id', { mode: 'number' }).notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('room_reads_room_user_key').on(table.roomId, table.userId)],
+)
+
 export const reports = pgTable(
   'reports',
   {

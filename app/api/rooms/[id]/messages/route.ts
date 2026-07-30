@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db'
 import { messages, users } from '@/lib/db/schema'
-import { getMessagesForRoom, getRoomForViewer, getSessionUserOrNull } from '@/lib/server-data'
+import { getMessagesForRoom, getRoomForViewer, getRoomReads, getSessionUserOrNull, markRoomRead } from '@/lib/server-data'
 
 const CONTENT_MAX = 500
 
@@ -23,7 +23,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const after = Number(afterRaw ?? '0')
 
   const list = await getMessagesForRoom(id, Number.isFinite(after) ? after : 0, me.id)
-  return NextResponse.json(list)
+
+  let reads: Awaited<ReturnType<typeof getRoomReads>> = []
+  if (access.type === 'ORDER' && access.pot) {
+    await markRoomRead(id, me.id)
+    reads = await getRoomReads(id, access.pot.id)
+  }
+
+  return NextResponse.json({ messages: list, reads })
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -64,6 +71,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .insert(messages)
     .values({ roomId: id, senderId: me.id, type: 'TEXT', content })
     .returning()
+
+  if (access.type === 'ORDER') {
+    await markRoomRead(id, me.id)
+  }
 
   return NextResponse.json(
     {

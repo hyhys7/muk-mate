@@ -1,11 +1,11 @@
 import 'server-only'
 
-import { and, asc, count, desc, eq, gt, inArray, lt } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, inArray, lt, sql } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
 
 import { auth } from '@/auth'
 import { getDb } from '@/lib/db'
-import { chatRooms, messages, notifications, participations, pots, users } from '@/lib/db/schema'
+import { chatRooms, messages, notifications, participations, pots, roomReads, users } from '@/lib/db/schema'
 import { formatDateTime } from '@/lib/format'
 import { resolveViewerState } from '@/lib/pots/viewer-state'
 import type {
@@ -16,6 +16,7 @@ import type {
   Pot,
   PotStatus,
   RoomAccess,
+  RoomReadEntry,
   User,
   ZoneCode,
 } from '@/lib/types'
@@ -603,6 +604,54 @@ export async function getMessagesForRoom(
     content: r.content,
     createdAt: r.createdAt.toISOString(),
     isMine: r.senderId === viewerId,
+  }))
+}
+
+/** 읽음 표시(v2.5): viewer가 이 방을 보고 있다는 뜻이므로 현재까지의 마지막 메시지로 읽음 커서를 올린다. */
+export async function markRoomRead(roomId: string, viewerId: string): Promise<void> {
+  const db = getDb()
+
+  const [{ maxId }] = await db
+    .select({ maxId: sql<number>`COALESCE(MAX(${messages.id}), 0)` })
+    .from(messages)
+    .where(eq(messages.roomId, roomId))
+
+  if (maxId <= 0) return
+
+  await db
+    .insert(roomReads)
+    .values({ roomId, userId: viewerId, lastReadMessageId: maxId })
+    .onConflictDoUpdate({
+      target: [roomReads.roomId, roomReads.userId],
+      set: {
+        lastReadMessageId: sql`GREATEST(${roomReads.lastReadMessageId}, ${maxId})`,
+        updatedAt: new Date(),
+      },
+    })
+}
+
+/** 읽음 표시(v2.5): ORDER 방 참여자(승인된 참여자 전원, 방장 포함) 각각의 읽음 커서 스냅샷 */
+export async function getRoomReads(roomId: string, potId: string): Promise<RoomReadEntry[]> {
+  const db = getDb()
+
+  const participants = await db
+    .select({ userId: participations.userId })
+    .from(participations)
+    .where(and(eq(participations.potId, potId), eq(participations.approvalStatus, 'APPROVED')))
+
+  if (participants.length === 0) return []
+
+  const participantIds = participants.map((p) => p.userId)
+  const readRows = await db
+    .select({ userId: roomReads.userId, lastReadMessageId: roomReads.lastReadMessageId })
+    .from(roomReads)
+    .where(and(eq(roomReads.roomId, roomId), inArray(roomReads.userId, participantIds)))
+
+  const readMap = new Map(readRows.map((r) => [r.userId, r.lastReadMessageId]))
+
+  return participantIds.map((userId) => ({
+    userId,
+    lastReadMessageId: readMap.get(userId) ?? 0,
   }))
 }
 

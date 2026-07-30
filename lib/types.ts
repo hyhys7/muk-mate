@@ -115,6 +115,12 @@ export interface Message {
   isMine: boolean
 }
 
+/** 읽음 표시(v2.5) — ORDER 채팅방 참여자별 마지막으로 읽은 메시지 id */
+export interface RoomReadEntry {
+  userId: string
+  lastReadMessageId: number
+}
+
 /** 채팅방 접근 권한 검사 결과 — lib/server-data.ts의 getRoomForViewer가 반환하는 모양 */
 export interface RoomAccess {
   id: string

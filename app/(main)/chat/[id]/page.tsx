@@ -1,6 +1,13 @@
 import { notFound } from 'next/navigation'
 import { ChatRoomView } from '@/components/chat/chat-room-view'
-import { getCurrentUser, getMessagesForRoom, getRoomForViewer } from '@/lib/server-data'
+import {
+  getCurrentUser,
+  getMessagesForRoom,
+  getRoomForViewer,
+  getRoomReads,
+  markRoomRead,
+} from '@/lib/server-data'
+import type { RoomReadEntry } from '@/lib/types'
 
 export default async function ChatRoomPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -12,5 +19,11 @@ export default async function ChatRoomPage({ params }: { params: Promise<{ id: s
 
   const initialMessages = await getMessagesForRoom(id, 0, me.id)
 
-  return <ChatRoomView room={access} initialMessages={initialMessages} />
+  let initialReads: RoomReadEntry[] = []
+  if (access.type === 'ORDER' && access.pot) {
+    await markRoomRead(id, me.id)
+    initialReads = await getRoomReads(id, access.pot.id)
+  }
+
+  return <ChatRoomView room={access} initialMessages={initialMessages} initialReads={initialReads} />
 }

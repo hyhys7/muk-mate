@@ -29,6 +29,13 @@
       "when": 1785393461646,
       "tag": "0003_premium_magdalene",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785399717374,
+      "tag": "0004_clean_ultimates",
+      "breakpoints": true
     }
   ]
 }
