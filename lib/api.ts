@@ -5,7 +5,7 @@
 // 빌드가 깨진다. 서버 컴포넌트가 필요로 하는 조회는 lib/server-data.ts를 쓴다.
 //
 // ─────────────────────────────────────────────────────────────
-import type { Message, Participation, Place, Pot, PotStatus, ZoneCode } from '@/lib/types'
+import type { AppNotification, Message, Participation, Place, Pot, PotStatus, ZoneCode } from '@/lib/types'
 
 async function parseJsonResponse<T>(res: Response): Promise<T> {
   const data = await res.json().catch(() => null)
@@ -161,4 +161,39 @@ export async function sendReport(input: {
     body: JSON.stringify(input),
   })
   return parseJsonResponse<{ ok: boolean; reportId: string }>(res)
+}
+
+/** 내 알림 목록 조회 — GET /api/notifications */
+export async function getNotifications(
+  cursor?: number,
+  limit = 20,
+): Promise<{ items: AppNotification[]; nextCursor?: number }> {
+  const url = cursor
+    ? `/api/notifications?cursor=${cursor}&limit=${limit}`
+    : `/api/notifications?limit=${limit}`
+  const res = await fetch(url)
+  return parseJsonResponse(res)
+}
+
+/** 읽지 않은 알림 개수 — GET /api/notifications/unread-count */
+export async function getUnreadNotificationCount(): Promise<number> {
+  const res = await fetch('/api/notifications/unread-count')
+  const data = await parseJsonResponse<{ unreadCount: number }>(res)
+  return data.unreadCount
+}
+
+/** 알림 단일 읽음 처리 — PATCH /api/notifications/:id/read */
+export async function markNotificationAsRead(id: number): Promise<void> {
+  const res = await fetch(`/api/notifications/${id}/read`, {
+    method: 'PATCH',
+  })
+  await parseJsonResponse<{ ok: true }>(res)
+}
+
+/** 모든 알림 읽음 처리 — PATCH /api/notifications/read-all */
+export async function markAllNotificationsAsRead(): Promise<void> {
+  const res = await fetch('/api/notifications/read-all', {
+    method: 'PATCH',
+  })
+  await parseJsonResponse<{ ok: true }>(res)
 }

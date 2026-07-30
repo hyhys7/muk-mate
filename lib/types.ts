@@ -136,3 +136,25 @@ export interface Place {
   /** 경도 */
   lng: number
 }
+
+export type NotificationType =
+  | 'APPLICATION_SUBMITTED'
+  | 'APPLICATION_RECEIVED'
+  | 'APPLICATION_APPROVED'
+  | 'APPLICATION_REJECTED'
+  | 'POT_COMPLETED'
+  | 'POT_CANCELED'
+
+export interface AppNotification {
+  id: number
+  recipientId: string
+  type: NotificationType
+  potId: string | null
+  participationId: string | null
+  title: string
+  body: string
+  actionPath: string | null
+  isRead: boolean
+  readAt: string | null
+  createdAt: string
+}

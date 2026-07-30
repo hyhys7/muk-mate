@@ -1,14 +1,15 @@
 import 'server-only'
 
-import { and, asc, desc, eq, gt, inArray } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, inArray, lt } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
 
 import { auth } from '@/auth'
 import { getDb } from '@/lib/db'
-import { chatRooms, messages, participations, pots, users } from '@/lib/db/schema'
+import { chatRooms, messages, notifications, participations, pots, users } from '@/lib/db/schema'
 import { formatDateTime } from '@/lib/format'
 import { resolveViewerState } from '@/lib/pots/viewer-state'
 import type {
+  AppNotification,
   ChatRoom,
   Message,
   Participation,
@@ -601,4 +602,56 @@ export async function getMessagesForRoom(
     createdAt: r.createdAt.toISOString(),
     isMine: r.senderId === viewerId,
   }))
+}
+
+export async function getNotificationsForUser(
+  userId: string,
+  cursorId?: number,
+  limit = 20,
+): Promise<{ items: AppNotification[]; nextCursor?: number }> {
+  const db = getDb()
+
+  const rows = await db
+    .select()
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.recipientId, userId),
+        cursorId ? lt(notifications.id, cursorId) : undefined,
+      ),
+    )
+    .orderBy(desc(notifications.id))
+    .limit(limit + 1)
+
+  const hasNext = rows.length > limit
+  const itemsRaw = hasNext ? rows.slice(0, limit) : rows
+
+  const items: AppNotification[] = itemsRaw.map((r) => ({
+    id: r.id,
+    recipientId: r.recipientId,
+    type: r.type,
+    potId: r.potId,
+    participationId: r.participationId,
+    title: r.title,
+    body: r.body,
+    actionPath: r.actionPath,
+    isRead: r.isRead,
+    readAt: r.readAt ? r.readAt.toISOString() : null,
+    createdAt: r.createdAt.toISOString(),
+  }))
+
+  const nextCursor = hasNext ? itemsRaw[itemsRaw.length - 1].id : undefined
+
+  return { items, nextCursor }
+}
+
+export async function getUnreadNotificationCount(userId: string): Promise<number> {
+  const db = getDb()
+
+  const [{ cnt }] = await db
+    .select({ cnt: count() })
+    .from(notifications)
+    .where(and(eq(notifications.recipientId, userId), eq(notifications.isRead, false)))
+
+  return cnt
 }

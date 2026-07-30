@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db'
 import { chatRooms, messages, participations, pots, users } from '@/lib/db/schema'
+import { createNotification } from '@/lib/notifications'
 import { getSessionUserOrNull } from '@/lib/server-data'
 
 export async function PATCH(
@@ -27,7 +28,7 @@ export async function PATCH(
 
   // 1. 모집글 정보 및 방장 권한 검증
   const [pot] = await db
-    .select({ id: pots.id, hostId: pots.hostId, targetValue: pots.targetValue })
+    .select({ id: pots.id, hostId: pots.hostId, targetValue: pots.targetValue, storeName: pots.storeName })
     .from(pots)
     .where(eq(pots.id, potId))
     .limit(1)
@@ -95,8 +96,17 @@ export async function PATCH(
       })
     }
 
-    // 🔔 알림 훅 B — 신청자에게 승인 (FEAT-05에서 연결)
-    // 🔔 알림 훅 C — 이 승인으로 정원이 찼으면 전원에게 정원마감 (FEAT-05에서 연결)
+    // 🔔 알림 훅 B — 신청자에게 승인
+    await createNotification(db, {
+      recipientId: targetUserId,
+      type: 'APPLICATION_APPROVED',
+      potId,
+      participationId: target.id,
+      title: '참여가 승인되었어요',
+      body: `${pot.storeName} 공동주문의 주문 채팅방을 확인해주세요.`,
+      actionPath: room ? `/chat/${room.id}` : `/chat`,
+      dedupeKey: `APPLICATION_APPROVED:${target.id}:${targetUserId}`,
+    })
 
     return NextResponse.json({
       participation: {
@@ -116,7 +126,17 @@ export async function PATCH(
       .where(eq(participations.id, target.id))
       .returning()
 
-    // 🔔 알림 훅 E — 신청자에게 거절 (FEAT-05에서 연결)
+    // 🔔 알림 훅 E — 신청자에게 거절
+    await createNotification(db, {
+      recipientId: targetUserId,
+      type: 'APPLICATION_REJECTED',
+      potId,
+      participationId: target.id,
+      title: '참여 신청이 승인되지 않았어요',
+      body: `${pot.storeName} 공동주문의 참여 상태를 확인해주세요.`,
+      actionPath: `/pots/${potId}`,
+      dedupeKey: `APPLICATION_REJECTED:${target.id}:${targetUserId}`,
+    })
 
     return NextResponse.json({
       participation: {

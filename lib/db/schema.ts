@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import {
   bigint,
   bigserial,
+  boolean,
   index,
   integer,
   numeric,
@@ -34,6 +35,14 @@ export const reportReasonEnum = pgEnum('report_reason', [
   'OTHER',
 ])
 export const reportStatusEnum = pgEnum('report_status', ['PENDING', 'REVIEWING', 'RESOLVED', 'DISMISSED'])
+export const notificationTypeEnum = pgEnum('notification_type', [
+  'APPLICATION_SUBMITTED',
+  'APPLICATION_RECEIVED',
+  'APPLICATION_APPROVED',
+  'APPLICATION_REJECTED',
+  'POT_COMPLETED',
+  'POT_CANCELED',
+])
 
 /** 활동 지역: 목록이 아직 미확정(PRD §17-1)이라 enum이 아니라 테이블로 분리 */
 export const zones = pgTable('zones', {
@@ -167,6 +176,30 @@ export const reports = pgTable(
   (table) => [
     index('idx_reports_status_created').on(table.status, table.createdAt),
     uniqueIndex('idx_reports_duplicate_message').on(table.reporterId, table.messageId),
+  ],
+)
+
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    recipientId: uuid('recipient_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: notificationTypeEnum('type').notNull(),
+    potId: uuid('pot_id').references(() => pots.id, { onDelete: 'cascade' }),
+    participationId: uuid('participation_id').references(() => participations.id, { onDelete: 'set null' }),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    actionPath: text('action_path'),
+    isRead: boolean('is_read').notNull().default(false),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    dedupeKey: text('dedupe_key').notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_notifications_recipient_created').on(table.recipientId, table.createdAt),
+    index('idx_notifications_recipient_unread').on(table.recipientId, table.isRead, table.createdAt),
   ],
 )
 

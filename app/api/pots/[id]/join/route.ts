@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db'
 import { participations, pots } from '@/lib/db/schema'
+import { createNotification } from '@/lib/notifications'
 import { computeEffectiveStatus, getSessionUserOrNull } from '@/lib/server-data'
 
 const APPLY_MESSAGE_MAX = 200
@@ -35,6 +36,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       status: pots.status,
       targetValue: pots.targetValue,
       deadlineAt: pots.deadlineAt,
+      storeName: pots.storeName,
     })
     .from(pots)
     .where(eq(pots.id, potId))
@@ -113,7 +115,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     })
     .returning()
 
-  // 🔔 알림 훅 A — 방장에게 참여요청 (FEAT-05에서 연결)
+  // 🔔 알림 훅 A — 신청자 및 방장에게 알림 생성
+  await createNotification(db, {
+    recipientId: me.id,
+    type: 'APPLICATION_SUBMITTED',
+    potId,
+    participationId: inserted.id,
+    title: '참여 신청이 완료되었어요',
+    body: `${pot.storeName} 공동주문의 모집자 승인을 기다려주세요.`,
+    actionPath: `/pots/${potId}`,
+    dedupeKey: `APPLICATION_SUBMITTED:${inserted.id}:${me.id}`,
+  })
+
+  await createNotification(db, {
+    recipientId: pot.hostId,
+    type: 'APPLICATION_RECEIVED',
+    potId,
+    participationId: inserted.id,
+    title: '새 참여 신청이 들어왔어요',
+    body: `${me.nickname}님이 ${pot.storeName} 공동주문에 신청했어요.`,
+    actionPath: `/pots/${potId}`,
+    dedupeKey: `APPLICATION_RECEIVED:${inserted.id}:${pot.hostId}`,
+  })
 
   return NextResponse.json(
     {

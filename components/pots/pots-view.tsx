@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { Bell, Check, ChevronDown, Plus, Search, ShoppingBag } from 'lucide-react'
+import { NotificationBell } from '@/components/notification-bell'
 import { PotCard } from '@/components/pots/pot-card'
 import { StoreAvatar } from '@/components/store-avatar'
 import { EmptyState } from '@/components/empty-state'
@@ -90,13 +90,7 @@ export function PotsView({ pots, initialZone }: { pots: Pot[]; initialZone: Zone
           >
             <Search className="size-5" />
           </button>
-          <button
-            type="button"
-            aria-label="알림"
-            className="flex size-11 items-center justify-center rounded-full text-foreground transition active:scale-[0.95] hover:bg-muted"
-          >
-            <Bell className="size-5" />
-          </button>
+          <NotificationBell />
         </div>
       </header>
 

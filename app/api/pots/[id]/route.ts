@@ -1,8 +1,9 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db'
-import { chatRooms, messages, pots } from '@/lib/db/schema'
+import { chatRooms, messages, participations, pots } from '@/lib/db/schema'
+import { createNotificationBulk } from '@/lib/notifications'
 import { computeEffectiveStatus, getPotById, getSessionUserOrNull } from '@/lib/server-data'
 import type { PotStatus } from '@/lib/types'
 
@@ -46,7 +47,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const db = getDb()
   const [row] = await db
-    .select({ hostId: pots.hostId, status: pots.status, deadlineAt: pots.deadlineAt })
+    .select({ hostId: pots.hostId, status: pots.status, deadlineAt: pots.deadlineAt, storeName: pots.storeName })
     .from(pots)
     .where(eq(pots.id, id))
     .limit(1)
@@ -74,6 +75,52 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (room) {
       await db.insert(messages).values({ roomId: room.id, senderId: null, type: 'SYSTEM', content: systemMessage })
     }
+  }
+
+  // 🔔 알림 훅: ORDERED 또는 CANCELED 상태 변경 알림
+  if (nextStatus === 'ORDERED') {
+    const approvedMembers = await db
+      .select({ userId: participations.userId })
+      .from(participations)
+      .where(and(eq(participations.potId, id), eq(participations.approvalStatus, 'APPROVED')))
+
+    const recipients = approvedMembers.map((m) => m.userId).filter((uid) => uid !== me.id)
+    await createNotificationBulk(
+      db,
+      recipients.map((uid) => ({
+        recipientId: uid,
+        type: 'POT_COMPLETED',
+        potId: id,
+        title: '공동주문이 완료되었어요',
+        body: `${row.storeName} 공동주문이 완료 처리되었어요.`,
+        actionPath: `/pots/${id}`,
+        dedupeKey: `POT_COMPLETED:${id}:${uid}`,
+      })),
+    )
+  } else if (nextStatus === 'CANCELED') {
+    const activeMembers = await db
+      .select({ userId: participations.userId })
+      .from(participations)
+      .where(
+        and(
+          eq(participations.potId, id),
+          inArray(participations.approvalStatus, ['PENDING', 'APPROVED']),
+        ),
+      )
+
+    const recipients = activeMembers.map((m) => m.userId).filter((uid) => uid !== me.id)
+    await createNotificationBulk(
+      db,
+      recipients.map((uid) => ({
+        recipientId: uid,
+        type: 'POT_CANCELED',
+        potId: id,
+        title: '공동주문이 취소되었어요',
+        body: `${row.storeName} 공동주문이 취소되었습니다.`,
+        actionPath: `/pots/${id}`,
+        dedupeKey: `POT_CANCELED:${id}:${uid}`,
+      })),
+    )
   }
 
   const pot = await getPotById(id)
