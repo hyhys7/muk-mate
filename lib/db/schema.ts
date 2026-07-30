@@ -111,6 +111,10 @@ export const participations = pgTable(
   (table) => [
     uniqueIndex('participations_pot_user_key').on(table.potId, table.userId), // 중복 신청 방지
     index('idx_participations_user').on(table.userId, table.createdAt),
+    // 방장의 "대기 중 신청 목록" 조회(GET /api/pots/:id/requests) 전용 부분 인덱스
+    index('idx_participations_pending')
+      .on(table.potId, table.createdAt)
+      .where(sql`${table.approvalStatus} = 'PENDING'`),
   ],
 )
 
