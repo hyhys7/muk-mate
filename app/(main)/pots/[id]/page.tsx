@@ -3,6 +3,7 @@ import { PotDetailView } from '@/components/pots/pot-detail-view'
 import {
   getCurrentUser,
   getHostMenuAmount,
+  getMannerAvatarsForUsers,
   getMannerReviewStatus,
   getParticipationsForPot,
   getPendingRequestsForPot,
@@ -25,10 +26,11 @@ export default async function PotDetailPage({
   if (!pot) notFound()
 
   const isHost = pot.hostId === me.id
-  const [pendingRequests, mannerReviewStatus, hostMenuAmount] = await Promise.all([
+  const [pendingRequests, mannerReviewStatus, hostMenuAmount, hostMannerMap] = await Promise.all([
     isHost ? getPendingRequestsForPot(id) : Promise.resolve([]),
     pot.status === 'ORDERED' ? getMannerReviewStatus(id, me.id) : Promise.resolve(undefined),
     getHostMenuAmount(id, pot.hostId),
+    getMannerAvatarsForUsers([pot.hostId]),
   ])
 
   return (
@@ -39,6 +41,7 @@ export default async function PotDetailPage({
       isHost={isHost}
       mannerReviewStatus={mannerReviewStatus}
       hostMenuAmount={hostMenuAmount}
+      hostManner={hostMannerMap.get(pot.hostId)}
     />
   )
 }

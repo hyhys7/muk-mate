@@ -27,6 +27,7 @@ import type {
   ChatRoom,
   MannerAvatarAccessory,
   MannerAvatarColor,
+  MannerAvatarInfo,
   MannerProfile,
   MannerRating,
   MannerReviewStatus,
@@ -456,19 +457,20 @@ export async function getParticipationsForPot(potId: string, viewerId: string | 
     .where(eq(participations.potId, potId))
 
   const visible = isHost ? rows : rows.filter((r) => r.approvalStatus === 'APPROVED')
+  const others = visible.filter((r) => r.userId !== pot.hostId)
+  const mannerMap = await getMannerAvatarsForUsers(others.map((r) => r.userId))
 
-  return visible
-    .filter((r) => r.userId !== pot.hostId)
-    .map((r) => ({
-      id: r.id,
-      potId: r.potId,
-      userId: r.userId,
-      nickname: r.nickname,
-      applyMessage: r.applyMessage ?? '',
-      menuAmount: r.menuAmount ?? 0,
-      approvalStatus: r.approvalStatus,
-      createdAt: r.createdAt.toISOString(),
-    }))
+  return others.map((r) => ({
+    id: r.id,
+    potId: r.potId,
+    userId: r.userId,
+    nickname: r.nickname,
+    applyMessage: r.applyMessage ?? '',
+    menuAmount: r.menuAmount ?? 0,
+    approvalStatus: r.approvalStatus,
+    createdAt: r.createdAt.toISOString(),
+    manner: mannerMap.get(r.userId),
+  }))
 }
 
 export async function getPendingRequestsForPot(potId: string): Promise<{
@@ -476,6 +478,7 @@ export async function getPendingRequestsForPot(potId: string): Promise<{
   nickname: string
   menuMemo: string
   requestedAt: string
+  manner?: MannerAvatarInfo
 }[]> {
   const db = getDb()
 
@@ -496,11 +499,14 @@ export async function getPendingRequestsForPot(potId: string): Promise<{
     )
     .orderBy(desc(participations.createdAt))
 
+  const mannerMap = await getMannerAvatarsForUsers(rows.map((r) => r.userId))
+
   return rows.map((r) => ({
     userId: r.userId,
     nickname: r.nickname,
     menuMemo: r.applyMessage ?? '',
     requestedAt: r.requestedAt.toISOString(),
+    manner: mannerMap.get(r.userId),
   }))
 }
 
@@ -975,6 +981,41 @@ export async function getMannerProfile(userId: string): Promise<MannerProfile> {
     avatarColor: (row?.avatarColor ?? 'NAVY') as MannerAvatarColor,
     avatarAccessory: (row?.avatarAccessory ?? 'NONE') as MannerAvatarAccessory,
   }
+}
+
+/**
+ * 참여자 목록·참여 신청 관리 화면(v2.13) 등 여러 명을 한 번에 그릴 때 쓰는 가벼운 배치 조회.
+ * getMannerProfile()과 달리 applyDueMannerReviews()를 실행하지 않는다 — 목록 렌더링마다
+ * DB 쓰기가 일어나면 안 되고(조회 성능), 지연 반영은 해당 유저의 마이페이지/프로필 화면
+ * 접근 시 자연히 정리된다. 프로필 행이 아직 없는 유저는 기본값(NEW/NAVY/NONE)으로 채운다.
+ */
+export async function getMannerAvatarsForUsers(userIds: string[]): Promise<Map<string, MannerAvatarInfo>> {
+  const map = new Map<string, MannerAvatarInfo>()
+  const uniqueIds = [...new Set(userIds)]
+  if (uniqueIds.length === 0) return map
+
+  const rows = await getDb()
+    .select({
+      userId: mannerProfiles.userId,
+      score: mannerProfiles.score,
+      reviewCount: mannerProfiles.reviewCount,
+      avatarColor: mannerProfiles.avatarColor,
+      avatarAccessory: mannerProfiles.avatarAccessory,
+    })
+    .from(mannerProfiles)
+    .where(inArray(mannerProfiles.userId, uniqueIds))
+
+  for (const row of rows) {
+    map.set(row.userId, {
+      stage: computeMannerStage(Number(row.score), row.reviewCount),
+      avatarColor: row.avatarColor as MannerAvatarColor,
+      avatarAccessory: row.avatarAccessory as MannerAvatarAccessory,
+    })
+  }
+  for (const id of uniqueIds) {
+    if (!map.has(id)) map.set(id, { stage: 'NEW', avatarColor: 'NAVY', avatarAccessory: 'NONE' })
+  }
+  return map
 }
 
 /** 아바타 색상·소품 변경(v2.9, P1) — 매너 단계 표정은 여기서 못 바꾼다(stage는 계산값) */

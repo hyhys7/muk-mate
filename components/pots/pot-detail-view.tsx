@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { JoinButton } from '@/components/pots/join-button'
 import { JoinConfirmSheet } from '@/components/pots/join-confirm-sheet'
 import { PendingRequest, RequestList } from '@/components/pots/request-list'
+import { MannerAvatar } from '@/components/manner-avatar'
 import { ApprovalBadge, PotStatusBadge } from '@/components/status-badge'
 import { StoreAvatar } from '@/components/store-avatar'
 import { Progress } from '@/components/ui/progress'
@@ -23,7 +24,7 @@ import {
   formatDistance,
   formatWon,
 } from '@/lib/format'
-import type { MannerReviewStatus, Participation, Pot } from '@/lib/types'
+import type { MannerAvatarInfo, MannerReviewStatus, Participation, Pot } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import type { ViewerState } from '@/types/pot-member'
 
@@ -34,6 +35,7 @@ export function PotDetailView({
   isHost,
   mannerReviewStatus,
   hostMenuAmount = 0,
+  hostManner,
 }: {
   pot: Pot
   participations: Participation[]
@@ -42,6 +44,8 @@ export function PotDetailView({
   mannerReviewStatus?: MannerReviewStatus
   /** §5-4 분담 금액 계산용(P1) — 방장 본인의 참여 행에 담긴 주문 금액 */
   hostMenuAmount?: number
+  /** 참여자 목록에 노출할 방장의 매너 아바타 정보(v2.13) */
+  hostManner?: MannerAvatarInfo
 }) {
   const router = useRouter()
   const [viewerState, setViewerState] = useState<ViewerState>(
@@ -345,7 +349,12 @@ export function PotDetailView({
         <ul className="mt-3 flex flex-col gap-3">
           {/* 주최자 */}
           <li className="flex items-center gap-3">
-            <StoreAvatar name={pot.hostNickname} className="size-9 text-sm" />
+            <MannerAvatar
+              stage={hostManner?.stage ?? 'NEW'}
+              color={hostManner?.avatarColor ?? 'NAVY'}
+              accessory={hostManner?.avatarAccessory ?? 'NONE'}
+              className="size-9"
+            />
             <div className="min-w-0 flex-1">
               <Link href={`/users/${pot.hostId}`} className="text-sm font-semibold text-foreground hover:underline">
                 {pot.hostNickname}
@@ -358,7 +367,12 @@ export function PotDetailView({
 
           {(isHost ? participations : approved).map((p) => (
             <li key={p.id} className="flex items-center gap-3">
-              <StoreAvatar name={p.nickname} className="size-9 text-sm" />
+              <MannerAvatar
+                stage={p.manner?.stage ?? 'NEW'}
+                color={p.manner?.avatarColor ?? 'NAVY'}
+                accessory={p.manner?.avatarAccessory ?? 'NONE'}
+                className="size-9"
+              />
               <div className="min-w-0 flex-1">
                 <Link href={`/users/${p.userId}`} className="truncate text-sm font-semibold text-foreground hover:underline">
                   {p.nickname}

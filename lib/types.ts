@@ -85,6 +85,13 @@ export interface Pot {
   createdAt: string
 }
 
+/** 참여자 목록 등에서 함께 노출하는 최소 매너 정보 — 점수는 안 준다(§4-1 개별 화면 비공개 원칙), 표정용 stage만 */
+export interface MannerAvatarInfo {
+  stage: MannerStage
+  avatarColor: MannerAvatarColor
+  avatarAccessory: MannerAvatarAccessory
+}
+
 export interface Participation {
   id: string
   potId: string
@@ -94,6 +101,7 @@ export interface Participation {
   menuAmount: number
   approvalStatus: Approval
   createdAt: string
+  manner?: MannerAvatarInfo
 }
 
 export interface ChatRoom {

@@ -1,15 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { StoreAvatar } from '@/components/store-avatar'
+import { MannerAvatar } from '@/components/manner-avatar'
 import { Button } from '@/components/ui/button'
 import { formatDateTime } from '@/lib/format'
+import type { MannerAvatarInfo } from '@/lib/types'
 
 export interface PendingRequest {
   userId: string
   nickname: string
   menuMemo: string
   requestedAt: string
+  manner?: MannerAvatarInfo
 }
 
 interface RequestListProps {
@@ -76,7 +78,12 @@ export function RequestList({ requests, isFull, onApprove, onReject }: RequestLi
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <StoreAvatar name={req.nickname} className="size-8 text-xs" />
+                  <MannerAvatar
+                    stage={req.manner?.stage ?? 'NEW'}
+                    color={req.manner?.avatarColor ?? 'NAVY'}
+                    accessory={req.manner?.avatarAccessory ?? 'NONE'}
+                    className="size-8"
+                  />
                   <div>
                     <p className="text-sm font-bold text-foreground">{req.nickname}</p>
                     <p className="text-xs text-muted-foreground">

@@ -4,8 +4,8 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { Check, Users, X } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
+import { MannerAvatar } from '@/components/manner-avatar'
 import { ApprovalBadge, PotStatusBadge } from '@/components/status-badge'
-import { StoreAvatar } from '@/components/store-avatar'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/empty-state'
 import { decideMemberApplication, updatePotStatus } from '@/lib/api'
@@ -113,7 +113,12 @@ export function PotApplicationsView({
                     className="flex flex-col gap-2.5 rounded-xl border border-border bg-card p-3.5"
                   >
                     <div className="flex items-center gap-3">
-                      <StoreAvatar name={p.nickname} className="size-9 text-sm" />
+                      <MannerAvatar
+                        stage={p.manner?.stage ?? 'NEW'}
+                        color={p.manner?.avatarColor ?? 'NAVY'}
+                        accessory={p.manner?.avatarAccessory ?? 'NONE'}
+                        className="size-9"
+                      />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-foreground">{p.nickname}</p>
                         {p.applyMessage && (
@@ -154,7 +159,12 @@ export function PotApplicationsView({
               <ul className="flex flex-col gap-2">
                 {approved.map((p) => (
                   <li key={p.id} className="flex items-center gap-3 rounded-xl bg-muted px-3.5 py-2.5">
-                    <StoreAvatar name={p.nickname} className="size-8 text-xs" />
+                    <MannerAvatar
+                      stage={p.manner?.stage ?? 'NEW'}
+                      color={p.manner?.avatarColor ?? 'NAVY'}
+                      accessory={p.manner?.avatarAccessory ?? 'NONE'}
+                      className="size-8"
+                    />
                     <span className="flex-1 truncate text-sm font-medium text-foreground">{p.nickname}</span>
                     <ApprovalBadge status={p.approvalStatus} />
                   </li>
@@ -174,7 +184,12 @@ export function PotApplicationsView({
                     key={p.id}
                     className="flex items-center gap-3 rounded-xl bg-muted/50 px-3.5 py-2.5 opacity-60"
                   >
-                    <StoreAvatar name={p.nickname} className="size-8 text-xs" />
+                    <MannerAvatar
+                      stage={p.manner?.stage ?? 'NEW'}
+                      color={p.manner?.avatarColor ?? 'NAVY'}
+                      accessory={p.manner?.avatarAccessory ?? 'NONE'}
+                      className="size-8"
+                    />
                     <span className="flex-1 truncate text-sm font-medium text-foreground">{p.nickname}</span>
                     <ApprovalBadge status={p.approvalStatus} />
                   </li>
