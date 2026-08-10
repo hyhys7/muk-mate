@@ -1,6 +1,7 @@
 'use client'
 
-import { ArrowLeft, Check, Clock, MapPin, Share2, ShieldCheck, Trash2, Truck, Users } from 'lucide-react'
+import { ArrowLeft, Check, Clock, MapPin, Share2, ShieldCheck, Smile, Trash2, Truck, Users } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
@@ -19,7 +20,7 @@ import {
   formatDistance,
   formatWon,
 } from '@/lib/format'
-import type { Participation, Pot } from '@/lib/types'
+import type { MannerReviewStatus, Participation, Pot } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import type { ViewerState } from '@/types/pot-member'
 
@@ -28,11 +29,13 @@ export function PotDetailView({
   participations,
   initialRequests = [],
   isHost,
+  mannerReviewStatus,
 }: {
   pot: Pot
   participations: Participation[]
   initialRequests?: PendingRequest[]
   isHost: boolean
+  mannerReviewStatus?: MannerReviewStatus
 }) {
   const router = useRouter()
   const [viewerState, setViewerState] = useState<ViewerState>(
@@ -55,6 +58,9 @@ export function PotDetailView({
     : Math.min((approvedCount / pot.targetValue) * 100, 100)
 
   const approved = participations.filter((p) => p.approvalStatus === 'APPROVED')
+  const pendingReviewCount = mannerReviewStatus?.eligible
+    ? mannerReviewStatus.targets.filter((t) => !t.alreadyReviewed).length
+    : 0
 
   async function handleJoinSubmit(menuMemo: string) {
     setLoading(true)
@@ -179,6 +185,20 @@ export function PotDetailView({
         </div>
       </section>
 
+      {/* 매너평가 CTA — 주문 완료 후 아직 평가하지 않은 상대가 있을 때만 */}
+      {pendingReviewCount > 0 && (
+        <Link
+          href={`/pots/${pot.id}/manner-review`}
+          className="mx-4 flex items-center justify-between gap-2 rounded-xl bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition active:scale-[0.98]"
+        >
+          <span className="flex items-center gap-1.5">
+            <Smile className="size-4" />
+            함께한 메이트의 매너를 평가해 주세요 ({pendingReviewCount}명)
+          </span>
+          <span aria-hidden>→</span>
+        </Link>
+      )}
+
       {/* 방장용 참여 신청 목록 섹션 */}
       {isHost && (
         <RequestList
@@ -290,12 +310,12 @@ export function PotDetailView({
           <li className="flex items-center gap-3">
             <StoreAvatar name={pot.hostNickname} className="size-9 text-sm" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-foreground">
+              <Link href={`/users/${pot.hostId}`} className="text-sm font-semibold text-foreground hover:underline">
                 {pot.hostNickname}
                 <span className="ml-1.5 rounded-full bg-primary-soft px-1.5 py-0.5 text-xs font-bold text-primary">
                   주최자
                 </span>
-              </p>
+              </Link>
             </div>
           </li>
 
@@ -303,7 +323,9 @@ export function PotDetailView({
             <li key={p.id} className="flex items-center gap-3">
               <StoreAvatar name={p.nickname} className="size-9 text-sm" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-foreground">{p.nickname}</p>
+                <Link href={`/users/${p.userId}`} className="truncate text-sm font-semibold text-foreground hover:underline">
+                  {p.nickname}
+                </Link>
                 {p.applyMessage && (
                   <p className="truncate text-xs text-muted-foreground">{p.applyMessage}</p>
                 )}

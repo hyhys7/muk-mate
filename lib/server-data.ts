@@ -1,19 +1,35 @@
 import 'server-only'
 
-import { and, asc, count, desc, eq, gt, inArray, lt, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { auth } from '@/auth'
 import { REMEMBER_GUARD_COOKIE } from '@/lib/auth-constants'
-import { getDb } from '@/lib/db'
-import { chatRooms, messages, notifications, participations, pots, roomReads, users } from '@/lib/db/schema'
+import { getDb, getPgErrorCode } from '@/lib/db'
+import {
+  chatRooms,
+  mannerEvents,
+  mannerProfiles,
+  mannerReviews,
+  messages,
+  notifications,
+  participations,
+  pots,
+  roomReads,
+  users,
+} from '@/lib/db/schema'
 import { formatDateTime } from '@/lib/format'
 import { createNotificationBulk } from '@/lib/notifications'
 import { resolveViewerState } from '@/lib/pots/viewer-state'
 import type {
   AppNotification,
   ChatRoom,
+  MannerProfile,
+  MannerRating,
+  MannerReviewStatus,
+  MannerReviewTarget,
+  MannerStage,
   Message,
   Participation,
   Pot,
@@ -810,5 +826,229 @@ export async function getUnreadNotificationCount(userId: string): Promise<number
     .from(notifications)
     .where(and(eq(notifications.recipientId, userId), eq(notifications.isRead, false)))
 
+  return cnt
+}
+
+// ─────────────────────────────────────────────────────────────
+// 매너 포만도(P0) — PRD 범위 밖 별도 기획안("매너 포만도 및 성장형 아바타")의 P0 슬라이스.
+// 점수 계산·반영은 여기(서버)에서만 한다 — 클라이언트는 rating/tags만 보낸다.
+// "48시간 경과 또는 양측 제출" 반영은 크론 없이, 해당 유저의 매너 데이터를 읽거나 쓸 때마다
+// applyDueMannerReviews()로 그때그때 정산한다(§10-3③ 크론 금지 원칙과 동일 패턴).
+// ─────────────────────────────────────────────────────────────
+
+export const MANNER_RATING_DELTA: Record<MannerRating, number> = { GOOD: 1.5, NEUTRAL: 0, BAD: -3 }
+const MANNER_REVIEW_REVEAL_MS = 48 * 60 * 60 * 1000
+const MANNER_REVIEW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+
+export function computeMannerStage(score: number, reviewCount: number): MannerStage {
+  if (reviewCount < 3) return 'NEW'
+  if (score < 30) return 'STARVING'
+  if (score < 50) return 'PECKISH'
+  if (score < 70) return 'STEADY'
+  if (score < 85) return 'FULL'
+  return 'HAPPY'
+}
+
+async function ensureMannerProfile(db: ReturnType<typeof getDb>, userId: string): Promise<void> {
+  await db.insert(mannerProfiles).values({ userId }).onConflictDoNothing({ target: mannerProfiles.userId })
+}
+
+/**
+ * userId가 받은 리뷰 중 아직 반영 안 된(appliedAt is null) 건을 찾아, "상대도 이미 제출했거나
+ * visibleAfter(48시간)가 지난" 건만 골라 점수에 반영한다. 배치/크론이 아니라 해당 유저의 매너
+ * 데이터를 조회·평가 제출할 때마다 호출되는 lazy 정산 — computeEffectiveStatus와 같은 패턴.
+ */
+async function applyDueMannerReviews(db: ReturnType<typeof getDb>, userId: string): Promise<void> {
+  const pending = await db
+    .select({
+      id: mannerReviews.id,
+      potId: mannerReviews.potId,
+      reviewerId: mannerReviews.reviewerId,
+      revieweeId: mannerReviews.revieweeId,
+      rating: mannerReviews.rating,
+      visibleAfter: mannerReviews.visibleAfter,
+    })
+    .from(mannerReviews)
+    .where(and(eq(mannerReviews.revieweeId, userId), isNull(mannerReviews.appliedAt)))
+
+  if (pending.length === 0) return
+
+  const now = Date.now()
+  for (const row of pending) {
+    let due = row.visibleAfter.getTime() <= now
+    if (!due) {
+      const [counterpart] = await db
+        .select({ id: mannerReviews.id })
+        .from(mannerReviews)
+        .where(
+          and(
+            eq(mannerReviews.potId, row.potId),
+            eq(mannerReviews.reviewerId, row.revieweeId),
+            eq(mannerReviews.revieweeId, row.reviewerId),
+          ),
+        )
+        .limit(1)
+      due = Boolean(counterpart)
+    }
+    if (!due) continue
+
+    await ensureMannerProfile(db, userId)
+
+    const delta = MANNER_RATING_DELTA[row.rating]
+    await db
+      .update(mannerProfiles)
+      .set({
+        score: sql`LEAST(100, GREATEST(0, ${mannerProfiles.score} + ${delta}))`,
+        reviewCount: sql`${mannerProfiles.reviewCount} + 1`,
+        positiveCount: sql`${mannerProfiles.positiveCount} + ${row.rating === 'GOOD' ? 1 : 0}`,
+        negativeCount: sql`${mannerProfiles.negativeCount} + ${row.rating === 'BAD' ? 1 : 0}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(mannerProfiles.userId, userId))
+
+    await db.insert(mannerEvents).values({ userId, reviewId: row.id, reasonCode: 'PEER_REVIEW', delta: String(delta) })
+    await db.update(mannerReviews).set({ appliedAt: new Date() }).where(eq(mannerReviews.id, row.id))
+  }
+}
+
+export async function getMannerProfile(userId: string): Promise<MannerProfile> {
+  const db = getDb()
+  await ensureMannerProfile(db, userId)
+  await applyDueMannerReviews(db, userId)
+
+  const [row] = await db
+    .select({ score: mannerProfiles.score, reviewCount: mannerProfiles.reviewCount })
+    .from(mannerProfiles)
+    .where(eq(mannerProfiles.userId, userId))
+    .limit(1)
+
+  const reviewCount = row?.reviewCount ?? 0
+  const scoreNum = row ? Number(row.score) : 50
+  const stage = computeMannerStage(scoreNum, reviewCount)
+
+  return { score: reviewCount < 3 ? null : scoreNum, stage, reviewCount }
+}
+
+/** 공동주문 완료(ORDERED) 후 viewer가 평가할 수 있는 대상과 제출 여부(§7~8) */
+export async function getMannerReviewStatus(potId: string, viewerId: string): Promise<MannerReviewStatus> {
+  const db = getDb()
+
+  const [pot] = await db
+    .select({ hostId: pots.hostId, status: pots.status, orderedAt: pots.orderedAt })
+    .from(pots)
+    .where(eq(pots.id, potId))
+    .limit(1)
+
+  if (!pot) return { eligible: false, reason: 'POT_NOT_FOUND', targets: [] }
+  if (pot.status !== 'ORDERED' || !pot.orderedAt) {
+    return { eligible: false, reason: 'NOT_COMPLETED', targets: [] }
+  }
+  if (Date.now() > pot.orderedAt.getTime() + MANNER_REVIEW_WINDOW_MS) {
+    return { eligible: false, reason: 'REVIEW_WINDOW_EXPIRED', targets: [] }
+  }
+
+  const approvedMembers = await db
+    .select({ userId: participations.userId, nickname: users.nickname })
+    .from(participations)
+    .innerJoin(users, eq(participations.userId, users.id))
+    .where(and(eq(participations.potId, potId), eq(participations.approvalStatus, 'APPROVED')))
+
+  if (!approvedMembers.some((m) => m.userId === viewerId)) {
+    return { eligible: false, reason: 'NOT_A_MEMBER', targets: [] }
+  }
+
+  const isHost = pot.hostId === viewerId
+  const candidates = isHost
+    ? approvedMembers.filter((m) => m.userId !== viewerId)
+    : approvedMembers.filter((m) => m.userId === pot.hostId)
+
+  if (candidates.length === 0) return { eligible: false, reason: 'NO_TARGETS', targets: [] }
+
+  const existingReviews = await db
+    .select({ revieweeId: mannerReviews.revieweeId })
+    .from(mannerReviews)
+    .where(and(eq(mannerReviews.potId, potId), eq(mannerReviews.reviewerId, viewerId)))
+
+  const reviewedSet = new Set(existingReviews.map((r) => r.revieweeId))
+
+  const targets: MannerReviewTarget[] = candidates.map((c) => ({
+    userId: c.userId,
+    nickname: c.nickname,
+    alreadyReviewed: reviewedSet.has(c.userId),
+  }))
+
+  return { eligible: true, targets }
+}
+
+/** 매너평가 제출 — 자격 재검증부터 반영까지 서버에서만 수행한다. */
+export async function submitMannerReview(
+  potId: string,
+  reviewerId: string,
+  revieweeId: string,
+  rating: MannerRating,
+  tags: string[],
+): Promise<{ ok: true } | { ok: false; code: string; error: string }> {
+  if (reviewerId === revieweeId) {
+    return { ok: false, code: 'SELF_REVIEW', error: '자기 자신은 평가할 수 없습니다.' }
+  }
+
+  const status = await getMannerReviewStatus(potId, reviewerId)
+  if (!status.eligible) {
+    return { ok: false, code: status.reason ?? 'NOT_ELIGIBLE', error: '지금은 이 공동주문을 평가할 수 없습니다.' }
+  }
+
+  const target = status.targets.find((t) => t.userId === revieweeId)
+  if (!target) {
+    return { ok: false, code: 'INVALID_TARGET', error: '평가할 수 없는 대상입니다.' }
+  }
+  if (target.alreadyReviewed) {
+    return { ok: false, code: 'ALREADY_REVIEWED', error: '이미 평가를 남긴 상대입니다.' }
+  }
+
+  const db = getDb()
+
+  try {
+    await db.insert(mannerReviews).values({
+      potId,
+      reviewerId,
+      revieweeId,
+      rating,
+      tags,
+      visibleAfter: new Date(Date.now() + MANNER_REVIEW_REVEAL_MS),
+    })
+  } catch (err) {
+    if (getPgErrorCode(err) === '23505') {
+      return { ok: false, code: 'ALREADY_REVIEWED', error: '이미 평가를 남긴 상대입니다.' }
+    }
+    throw err
+  }
+
+  await applyDueMannerReviews(db, revieweeId)
+  await applyDueMannerReviews(db, reviewerId)
+
+  return { ok: true }
+}
+
+/** 공개 프로필 화면(§12-2)용 최소 사용자 조회 */
+export async function getPublicUserProfile(userId: string): Promise<{ id: string; nickname: string } | undefined> {
+  const db = getDb()
+  const [row] = await db.select({ id: users.id, nickname: users.nickname }).from(users).where(eq(users.id, userId)).limit(1)
+  return row
+}
+
+/** 완료(ORDERED)된 공동주문에 승인 멤버로 참여한 횟수(호스트 포함) — §12-2 "완료한 공동주문 횟수" */
+export async function getCompletedPotCount(userId: string): Promise<number> {
+  const db = getDb()
+  const [{ cnt }] = await db
+    .select({ cnt: count() })
+    .from(participations)
+    .innerJoin(pots, eq(participations.potId, pots.id))
+    .where(
+      and(
+        eq(participations.userId, userId),
+        eq(participations.approvalStatus, 'APPROVED'),
+        eq(pots.status, 'ORDERED'),
+      ),
+    )
   return cnt
 }

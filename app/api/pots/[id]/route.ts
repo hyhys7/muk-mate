@@ -74,7 +74,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ pot })
   }
 
-  await db.update(pots).set({ status: nextStatus }).where(eq(pots.id, id))
+  await db
+    .update(pots)
+    .set({ status: nextStatus, ...(nextStatus === 'ORDERED' ? { orderedAt: new Date() } : {}) })
+    .where(eq(pots.id, id))
 
   const systemMessage = STATUS_SYSTEM_MESSAGE[nextStatus]
   if (systemMessage) {

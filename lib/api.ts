@@ -5,7 +5,19 @@
 // 빌드가 깨진다. 서버 컴포넌트가 필요로 하는 조회는 lib/server-data.ts를 쓴다.
 //
 // ─────────────────────────────────────────────────────────────
-import type { AppNotification, Message, Participation, Place, Pot, PotStatus, RoomReadEntry, ZoneCode } from '@/lib/types'
+import type {
+  AppNotification,
+  MannerProfile,
+  MannerRating,
+  MannerReviewStatus,
+  Message,
+  Participation,
+  Place,
+  Pot,
+  PotStatus,
+  RoomReadEntry,
+  ZoneCode,
+} from '@/lib/types'
 
 async function parseJsonResponse<T>(res: Response): Promise<T> {
   const data = await res.json().catch(() => null)
@@ -249,6 +261,39 @@ export async function markNotificationAsRead(id: number): Promise<void> {
 export async function markAllNotificationsAsRead(): Promise<void> {
   const res = await fetch('/api/notifications/read-all', {
     method: 'PATCH',
+  })
+  await parseJsonResponse<{ ok: true }>(res)
+}
+
+/** 내 매너 포만도 조회 — GET /api/me/manner */
+export async function getMyManner(): Promise<MannerProfile> {
+  const res = await fetch('/api/me/manner')
+  const data = await parseJsonResponse<{ manner: MannerProfile }>(res)
+  return data.manner
+}
+
+/** 다른 사용자의 매너 포만도 조회 — GET /api/users/:id/manner */
+export async function getUserManner(userId: string): Promise<MannerProfile> {
+  const res = await fetch(`/api/users/${userId}/manner`)
+  const data = await parseJsonResponse<{ manner: MannerProfile }>(res)
+  return data.manner
+}
+
+/** 특정 공동주문에서 내가 평가할 수 있는 대상 조회 — GET /api/pots/:id/manner-review-status */
+export async function getMannerReviewStatus(potId: string): Promise<MannerReviewStatus> {
+  const res = await fetch(`/api/pots/${potId}/manner-review-status`)
+  return parseJsonResponse<MannerReviewStatus>(res)
+}
+
+/** 매너평가 제출 — POST /api/pots/:id/manner-reviews, 제출 후 수정 불가 */
+export async function submitMannerReview(
+  potId: string,
+  input: { revieweeId: string; rating: MannerRating; tags: string[] },
+): Promise<void> {
+  const res = await fetch(`/api/pots/${potId}/manner-reviews`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
   })
   await parseJsonResponse<{ ok: true }>(res)
 }

@@ -6,6 +6,7 @@ import {
   bigint,
   bigserial,
   boolean,
+  check,
   index,
   integer,
   numeric,
@@ -44,6 +45,7 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   'POT_COMPLETED',
   'POT_CANCELED',
 ])
+export const mannerRatingEnum = pgEnum('manner_rating', ['GOOD', 'NEUTRAL', 'BAD'])
 
 /** 활동 지역: 목록이 아직 미확정(PRD §17-1)이라 enum이 아니라 테이블로 분리 */
 export const zones = pgTable('zones', {
@@ -100,6 +102,8 @@ export const pots = pgTable(
     extraNote: text('extra_note'),
     status: potStatusEnum('status').notNull().default('OPEN'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    // ORDERED로 전이된 시각 — 매너평가 "완료 후 7일 이내" 판정 기준점(§7). ORDERED 이전에는 null.
+    orderedAt: timestamp('ordered_at', { withTimezone: true }),
   },
   (table) => [index('idx_pots_zone_status').on(table.zoneCode, table.status, table.deadlineAt)],
 )
@@ -223,6 +227,61 @@ export const notifications = pgTable(
     index('idx_notifications_recipient_unread').on(table.recipientId, table.isRead, table.createdAt),
   ],
 )
+
+// 매너 포만도(P0) — docs/PRD.md 범위 밖의 별도 기획안(매너 포만도 및 성장형 아바타 §14)에서 가져온 스키마.
+// 점수 계산·반영은 서버 전용(lib/server-data.ts) — 클라이언트가 변화량을 직접 보내지 않는다.
+export const mannerProfiles = pgTable(
+  'manner_profiles',
+  {
+    userId: uuid('user_id')
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    score: numeric('score', { precision: 5, scale: 2 }).notNull().default('50'),
+    reviewCount: integer('review_count').notNull().default(0),
+    positiveCount: integer('positive_count').notNull().default(0),
+    negativeCount: integer('negative_count').notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check('manner_profiles_score_check', sql`${table.score} >= 0 AND ${table.score} <= 100`)],
+)
+
+export const mannerReviews = pgTable(
+  'manner_reviews',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    potId: uuid('pot_id')
+      .notNull()
+      .references(() => pots.id, { onDelete: 'cascade' }),
+    reviewerId: uuid('reviewer_id')
+      .notNull()
+      .references(() => users.id),
+    revieweeId: uuid('reviewee_id')
+      .notNull()
+      .references(() => users.id),
+    rating: mannerRatingEnum('rating').notNull(),
+    tags: text('tags').array().notNull().default(sql`'{}'::text[]`),
+    // 반영 시점: 상대방도 제출했거나 이 시각이 지나면(48시간) 다음 조회 시점에 lazy 적용 — 크론 없음(§10-3③).
+    visibleAfter: timestamp('visible_after', { withTimezone: true }).notNull(),
+    appliedAt: timestamp('applied_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('manner_reviews_pot_reviewer_reviewee_key').on(table.potId, table.reviewerId, table.revieweeId),
+    index('idx_manner_reviews_reviewee').on(table.revieweeId, table.appliedAt),
+    check('manner_reviews_no_self_review_check', sql`${table.reviewerId} <> ${table.revieweeId}`),
+  ],
+)
+
+export const mannerEvents = pgTable('manner_events', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  reviewId: uuid('review_id').references(() => mannerReviews.id),
+  reasonCode: text('reason_code').notNull(), // P0: 'PEER_REVIEW' 고정 — 관리자 제재 사유 코드는 P1
+  delta: numeric('delta', { precision: 5, scale: 2 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
 
 // re-export for callers that want a raw sql tag without importing drizzle-orm directly
 export { sql }

@@ -146,6 +146,31 @@ export interface Place {
   lng: number
 }
 
+export type MannerRating = 'GOOD' | 'NEUTRAL' | 'BAD'
+
+/** 매너 포만도 5단계 + 신규 유저 상태(§5) — 낮은 순 → 높은 순 */
+export type MannerStage = 'NEW' | 'STARVING' | 'PECKISH' | 'STEADY' | 'FULL' | 'HAPPY'
+
+export interface MannerProfile {
+  /** reviewCount < 3이면 점수는 비공개(§4-1) — null로 표현 */
+  score: number | null
+  stage: MannerStage
+  reviewCount: number
+}
+
+export interface MannerReviewTarget {
+  userId: string
+  nickname: string
+  alreadyReviewed: boolean
+}
+
+export interface MannerReviewStatus {
+  eligible: boolean
+  /** eligible이 false여도 이유 파악용으로 채워질 수 있음 */
+  reason?: string
+  targets: MannerReviewTarget[]
+}
+
 export type NotificationType =
   | 'APPLICATION_SUBMITTED'
   | 'APPLICATION_RECEIVED'

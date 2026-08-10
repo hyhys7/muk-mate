@@ -19,6 +19,7 @@ import {
   Users,
 } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
+import { MannerBadge } from '@/components/manner-badge'
 import { ApprovalBadge, PotStatusBadge } from '@/components/status-badge'
 import { StoreAvatar } from '@/components/store-avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -34,14 +35,16 @@ import {
 import { zoneLabel } from '@/lib/constants'
 import { formatDateTime, formatWon } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import type { Participation, Pot, ZoneCode } from '@/lib/types'
+import type { MannerProfile, Participation, Pot, ZoneCode } from '@/lib/types'
 
 export function MyPageView({
   me,
+  manner,
   hostedPots,
   applications,
 }: {
   me: { nickname: string; zoneCode: ZoneCode }
+  manner: MannerProfile
   hostedPots: Pot[]
   applications: { participation: Participation; pot: Pot }[]
 }) {
@@ -59,6 +62,12 @@ export function MyPageView({
         <div className="min-w-0 flex-1">
           <p className="truncate text-base font-bold text-foreground">{me.nickname}</p>
           <p className="text-sm text-muted-foreground">{zoneLabel(me.zoneCode)}</p>
+          <MannerBadge
+            stage={manner.stage}
+            score={manner.score}
+            reviewCount={manner.reviewCount}
+            className="mt-1.5"
+          />
         </div>
         <Link
           href="/my/edit"

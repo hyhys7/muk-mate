@@ -1,6 +1,12 @@
 import { notFound } from 'next/navigation'
 import { PotDetailView } from '@/components/pots/pot-detail-view'
-import { getCurrentUser, getParticipationsForPot, getPendingRequestsForPot, getPotById } from '@/lib/server-data'
+import {
+  getCurrentUser,
+  getMannerReviewStatus,
+  getParticipationsForPot,
+  getPendingRequestsForPot,
+  getPotById,
+} from '@/lib/server-data'
 
 export default async function PotDetailPage({
   params,
@@ -18,7 +24,10 @@ export default async function PotDetailPage({
   if (!pot) notFound()
 
   const isHost = pot.hostId === me.id
-  const pendingRequests = isHost ? await getPendingRequestsForPot(id) : []
+  const [pendingRequests, mannerReviewStatus] = await Promise.all([
+    isHost ? getPendingRequestsForPot(id) : Promise.resolve([]),
+    pot.status === 'ORDERED' ? getMannerReviewStatus(id, me.id) : Promise.resolve(undefined),
+  ])
 
   return (
     <PotDetailView
@@ -26,6 +35,7 @@ export default async function PotDetailPage({
       participations={participations}
       initialRequests={pendingRequests}
       isHost={isHost}
+      mannerReviewStatus={mannerReviewStatus}
     />
   )
 }

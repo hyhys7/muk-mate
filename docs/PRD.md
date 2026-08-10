@@ -5,8 +5,8 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | **v2.7** (v2.6에서 게스트 접근 재차단 + "로그인 상태 유지" 기능 신설을 반영) |
-| 작성일 | 2026-07-28 (v2.1 갱신: 2026-07-29 / v2.2 갱신: 2026-07-30 / v2.3 갱신: 2026-07-30 / v2.4 갱신: 2026-07-30 / v2.5 갱신: 2026-07-30 / v2.6 갱신: 2026-07-30 / v2.7 갱신: 2026-07-31) |
+| 문서 버전 | **v2.8** (v2.7에서 매너 포만도 및 성장형 아바타 기능의 P0 슬라이스를 반영) |
+| 작성일 | 2026-07-28 (v2.1 갱신: 2026-07-29 / v2.2 갱신: 2026-07-30 / v2.3 갱신: 2026-07-30 / v2.4 갱신: 2026-07-30 / v2.5 갱신: 2026-07-30 / v2.6 갱신: 2026-07-30 / v2.7 갱신: 2026-07-31 / v2.8 갱신: 2026-08-10) |
 | 기준 문서 | 팀 v1.2 + 기술 검토본 v1.1 통합 |
 | 제품 형태 | 모바일 우선 반응형 웹 MVP |
 | 기술 스택 | Next.js · Neon DB(PostgreSQL) · Vercel · 카카오 로컬 API |
@@ -100,6 +100,15 @@
 |---|---|---|
 | 게스트 접근 | `/pots`·`/pots/[id]`는 비로그인도 조회 가능 | **재차단(AUTH-10).** `(main)` 전체가 다시 로그인 필수 — 루트(`/`)에 들어가면 로그인 세션이 없는 한 무조건 `/login`부터 보인다 |
 | 로그인 상태 유지 | 없음 — 로그인하면 무조건 30일 유지 | **AUTH-11로 신설.** NextAuth JWT 세션 쿠키 자체는 30일 고정(로그인마다 다르게 줄 공식 API가 없음)이라, 별도 가드 쿠키(`mukmate_remember_guard`)로 구현 — 체크 시 30일 지속, 체크 해제 시 브라우저 세션 쿠키(종료 시 자동 삭제)로 발급. `getCurrentUser()`/`getSessionUserOrNull()`이 NextAuth 세션 + 이 쿠키가 둘 다 있어야 로그인으로 인정하므로, 체크 해제 후 브라우저를 닫으면 NextAuth 쿠키 자체는 남아있어도 로그아웃 상태로 취급된다. 서버 컴포넌트에서 리다이렉트 전에 판정하므로 로그인 화면이 잠깐이라도 보였다 넘어가는 깜빡임은 없다 |
+
+### 0-8. v2.7 → v2.8 달라진 점
+
+별도로 공유된 기획안("매너 포만도 및 성장형 아바타 기능 명세")은 스스로를 **MVP 이후 고도화 기능**으로 규정했다. 그 문서의 P0 슬라이스만 잘라 구현했다 — 신뢰 지표 계산·반영 로직과 최소 배지 노출까지만이고, 아바타 커스터마이징·태그 집계·관리자 연동은 P1로 미뤘다. 상세 범위는 8-5, 17-5 참고.
+
+| 쟁점 | v2.7 | **v2.8 결정** |
+|---|---|---|
+| 사용자 간 신뢰 지표 | 없음 — 12장에서 "고도화된 평점·등급·포인트·쿠폰 시스템"을 명시적 비목표로 뒀음 | **매너 포만도(P0) 신설(8-5, 17-5).** 완료(ORDERED)된 공동주문의 모집자↔승인 참여자가 서로 좋았어요/보통/아쉬웠어요로 평가하면 서버가 0~100점을 계산해 5단계(+신규 유저) 배지로 노출한다. 순위표·아이템 결제·AI 자동 판정 같은 "고도화된" 요소는 여전히 비목표(12)로 남는다 |
+| 공개 사용자 프로필 화면 | 없음 — 13개 화면 목록(6-2)에 존재하지 않았음 | `/users/:id` 신설(17-5) — 닉네임, 매너 배지, 완료한 공동주문 횟수, 신고 버튼(기존 `ReportModal` 재사용). 13개 화면 목록과는 별개의 P0 이후 추가 화면으로 취급한다 |
 
 ---
 
@@ -482,6 +491,20 @@ MVP에서는 **운영자가 정한 고정 채팅방만** 제공하며, 사용자
 | MY-02 | 만든 공동주문과 참여한 공동주문을 구분해 볼 수 있다 | P0 |
 | MY-03 | 각 공동주문의 모집·신청·완료 상태가 표시된다 | P0 |
 
+### 8-5. 매너 포만도 (v2.8 신규 — 17-5 참고)
+
+| ID | 요구사항 | 우선순위 |
+|---|---|---|
+| MANNER-01 | 완료(ORDERED)된 공동주문의 모집자와 승인된 참여자는 서로를 매너평가할 수 있다(참여자끼리는 제외) | P0 |
+| MANNER-02 | 자기 자신을 평가할 수 없고, 같은 주문에서 같은 상대를 중복 평가할 수 없으며, 완료 후 7일이 지나면 평가할 수 없다 | P0 |
+| MANNER-03 | 점수 계산과 반영은 서버에서만 수행한다 — 클라이언트는 평가 결과와 태그만 전달하고 변화량을 직접 보내지 않는다 | P0 |
+| MANNER-04 | 평가가 3개 미만인 사용자는 점수 대신 "새로운 메이트"로 표시되어 저점수 사용자처럼 보이지 않는다 | P0 |
+| MANNER-05 | 매너 포만도는 0~100점, 5단계(허기 경보~행복한 먹메이트)로 구분되며 이모지+색상 배지로 마이페이지·사용자 프로필에 표시된다 | P0 |
+| MANNER-06 | 평가는 제출 즉시 상대에게 공개되지 않는다 — 상대도 평가를 제출했거나 48시간이 지나야 반영된다(보복평가 방지) | P0 |
+| MANNER-07 | 신고 접수만으로는 매너 포만도가 자동 차감되지 않는다 | P0 |
+| MANNER-08 | 사용자는 아바타 의상 색상·소품을 커스터마이징할 수 있다 | P1 (미구현) |
+| MANNER-09 | 많이 받은 긍정 태그가 마이페이지·프로필에 집계되어 표시된다 | P1 (미구현) |
+
 ---
 
 ## 9. 비기능 요구사항
@@ -589,6 +612,7 @@ CASE WHEN status = 'OPEN' AND deadline < now() THEN 'CLOSED' ELSE status END
 | 참여 신청 | 공동주문, 신청자, 참여 메시지, 승인·거절 상태 |
 | 채팅방 | 주문 채팅·커뮤니티 채팅 구분, 연결된 공동주문 |
 | 메시지 | 채팅방, 작성자, 내용, 작성 시각 |
+| 매너 포만도(v2.8) | 사용자별 누적 점수·평가 개수, 평가 1건(주문·평가자·대상·결과·태그), 점수 변경 이력 |
 
 ### 11-2. Postgres 스키마
 
@@ -602,6 +626,7 @@ CREATE TYPE account_status AS ENUM ('ACTIVE','SUSPENDED','DISABLED');
 CREATE TYPE report_reason AS ENUM ('HARASSMENT','SEXUAL_CONTENT','SPAM','FRAUD','NO_SHOW','PRIVACY','UNSAFE_MEETING','OTHER');
 CREATE TYPE report_status AS ENUM ('PENDING','REVIEWING','RESOLVED','DISMISSED');
 CREATE TYPE user_role AS ENUM ('USER','ADMIN');  -- v2.3: 관리자 기능(17-4), 부여는 DB에서 직접 처리
+CREATE TYPE manner_rating AS ENUM ('GOOD','NEUTRAL','BAD');  -- v2.8: 매너평가(8-5, 17-5)
 
 -- 활동 지역: 코드로 관리해 추후 목록 변경이 쉽도록 분리 (17-1 확정 필요)
 CREATE TABLE zones (
@@ -649,7 +674,8 @@ CREATE TABLE pots (
 
   extra_note     text,
   status         pot_status NOT NULL DEFAULT 'OPEN',
-  created_at     timestamptz NOT NULL DEFAULT now()
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  ordered_at     timestamptz  -- v2.8: ORDERED 전이 시각. 매너평가 "완료 후 7일 이내" 판정 기준점(8-5)
 );
 CREATE INDEX idx_pots_zone_status ON pots (zone_code, status, deadline_at);
 
@@ -719,6 +745,40 @@ CREATE TABLE reports (
   UNIQUE (reporter_id, message_id)            -- 같은 메시지 중복 신고 방지
 );
 CREATE INDEX idx_reports_status_created ON reports (status, created_at);
+
+-- v2.8: 매너 포만도(8-5, 17-5). 점수 계산·반영은 서버 전용 — 클라이언트가 변화량을 직접 보내지 않는다.
+CREATE TABLE manner_profiles (
+  user_id        uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  score          numeric(5,2) NOT NULL DEFAULT 50 CHECK (score >= 0 AND score <= 100),
+  review_count   integer NOT NULL DEFAULT 0,
+  positive_count integer NOT NULL DEFAULT 0,
+  negative_count integer NOT NULL DEFAULT 0,
+  updated_at     timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE manner_reviews (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  pot_id        uuid NOT NULL REFERENCES pots(id) ON DELETE CASCADE,
+  reviewer_id   uuid NOT NULL REFERENCES users(id),
+  reviewee_id   uuid NOT NULL REFERENCES users(id),
+  rating        manner_rating NOT NULL,
+  tags          text[] NOT NULL DEFAULT '{}',
+  visible_after timestamptz NOT NULL,          -- 상대도 제출했거나 이 시각이 지나야 반영(보복평가 방지)
+  applied_at    timestamptz,                   -- 점수에 실제 반영된 시각. NULL이면 아직 미반영
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  CHECK (reviewer_id <> reviewee_id),
+  UNIQUE (pot_id, reviewer_id, reviewee_id)    -- 동일 주문·동일 상대 중복 평가 방지
+);
+CREATE INDEX idx_manner_reviews_reviewee ON manner_reviews (reviewee_id, applied_at);
+
+CREATE TABLE manner_events (
+  id          bigserial PRIMARY KEY,
+  user_id     uuid NOT NULL REFERENCES users(id),
+  review_id   uuid REFERENCES manner_reviews(id),
+  reason_code text NOT NULL,                   -- P0: 'PEER_REVIEW' 고정. 관리자 제재 사유 코드는 P1(17-5)
+  delta       numeric(5,2) NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
 ```
 
 **설계 메모**
@@ -730,6 +790,7 @@ CREATE INDEX idx_reports_status_created ON reports (status, created_at);
 - **계좌 정보 컬럼은 두지 않는다.** 금융정보 보관 리스크를 피하고, 정산 안내는 채팅 메시지로 처리한다.
 - `zones`를 테이블로 분리한 이유는 활동 지역 목록이 아직 확정되지 않았기 때문이다 (17-1).
 - **v2.3**: `reports.status`와 `users.account_status`를 사람이 검토해 바꾸는 관리자 화면·API를 신설한다(`/admin/reports`, 17-4). `users.role`은 관리자 권한 검증 전용 컬럼이며, 셀프서비스로 바꿀 수 없다(DB에서 직접 부여).
+- **v2.8**: 매너평가 반영 시점("상대도 제출했거나 48시간 경과")은 별도 크론 없이, 해당 유저의 매너 데이터를 읽거나 쓸 때마다 그 자리에서 판정해 적용한다 — §10-3③의 마감 시각 자동 처리 원칙과 동일한 방식.
 
 ### 11-3. 주요 API 엔드포인트
 
@@ -745,7 +806,7 @@ CREATE INDEX idx_reports_status_created ON reports (status, created_at);
 | GET | `/api/pots?zone=&status=` | 공동주문 목록 | 공개 |
 | POST | `/api/pots` | 모집글 작성 | 로그인 |
 | GET | `/api/pots/:id` | 상세 + 참여자 + (P1) 분담 계산 | 공개 |
-| PATCH | `/api/pots/:id` | 모집글 수정 / 상태 변경 | **모집자만** |
+| PATCH | `/api/pots/:id` | 모집글 수정 / 상태 변경 — `ORDERED` 전이 시 `ordered_at` 기록(v2.8, 매너평가 7일 창의 기준점) | **모집자만** |
 | DELETE | `/api/pots/:id` | 모집글 삭제 — 참여자(대기중 포함) 0명일 때만 (v2.4, ORDER-13) | **모집자만** |
 | POST / DELETE | `/api/pots/:id/join` | 참여 신청 / 신청 취소·나가기 (v2.2, FEAT-06) | 로그인 |
 | GET | `/api/pots/:id/requests` | 대기 중인 참여 신청 목록 (v2.2, FEAT-06) | **모집자만** |
@@ -758,6 +819,10 @@ CREATE INDEX idx_reports_status_created ON reports (status, created_at);
 | PATCH | `/api/admin/reports/:id` | 신고 상태·메모 변경 (v2.3, 17-4) | **관리자만** |
 | PATCH | `/api/admin/users/:id` | 계정 상태(`account_status`) 변경 (v2.3, 17-4) | **관리자만** |
 | DELETE | `/api/admin/pots/:id` | 모집글 직권 삭제 — 참여자/방장 조건 무시 (v2.3, 17-4) | **관리자만** |
+| GET | `/api/me/manner` | 내 매너 포만도·단계 조회 (v2.8, 8-5) | 본인 |
+| GET | `/api/users/:id/manner` | 다른 사용자의 공개 매너 포만도·단계 조회 (v2.8, 8-5) | 로그인 |
+| GET | `/api/pots/:id/manner-review-status` | 내가 평가할 수 있는 대상과 제출 여부 조회 (v2.8, 8-5) | 주문 관계자 |
+| POST | `/api/pots/:id/manner-reviews` | 매너평가 제출 — 결과·태그만 전달, 점수 변화량은 서버가 계산 (v2.8, 8-5) | 주문 관계자 |
 
 > **2026-07-30 정리 완료**: 참여 신청/승인 경로가 신규(`join`/`members`/`requests`)와 레거시(`participations`/`applications`) 두 벌로 공존하던 문제를 해결 — 레거시 경로(`POST /api/pots/:id/participations`, `PATCH /api/applications/:id`)와 이를 쓰던 죽은 코드(`lib/api.ts`의 `applyToPot`/`updateApplicationStatus`)를 제거하고, 화면 #7(`참여 신청자 관리`)도 신규 `members` 경로로 옮겨 지금은 참여 승인/거절 로직이 한 곳으로 통합돼 있다.
 
@@ -783,7 +848,7 @@ MVP에서는 다음 기능을 만들지 않는다.
 - 휴대전화·이메일 인증 및 SMS 발송
 - 비밀번호 찾기·자동 재설정
 - 배달기사·식당용 별도 계정과 관리 시스템
-- 고도화된 평점·등급·포인트·쿠폰 시스템
+- 고도화된 평점·등급·포인트·쿠폰 시스템 — 동료 간 매너평가 기본형은 P0로 구현했다(8-5, 17-5). 순위표·경쟁 기능, 아바타 아이템 결제, AI 자동 판정 등 "고도화된" 요소는 계속 비목표다
 - 푸시 알림 (앱 내 배지 표시로 대체)
 
 > 실제 음식 주문과 금액 정산은 모집자와 참여자가 주문 채팅에서 합의한 뒤 외부 수단으로 진행한다.
@@ -873,6 +938,7 @@ MVP는 화면만 연결된 프로토타입이 아니라, **서로 다른 계정�
 - 가입자 중 공동주문을 만들거나 참여한 사용자 비율
 - 음식 커뮤니티 재방문 사용자 비율
 - 주문 1건이 모집 완료되기까지 걸린 시간
+- 완료된 공동주문 대비 매너평가 제출 비율(v2.8)
 
 ---
 
@@ -906,7 +972,7 @@ MVP는 화면만 연결된 프로토타입이 아니라, **서로 다른 계정�
 
 - 채팅방에서 메시지 또는 사용자를 신고하면 `reports` 테이블에 `PENDING` 상태로 접수된다(§11-2). 자기 자신 신고 금지, 같은 메시지 중복 신고 금지.
 - **신고를 검토·처리하는 관리자 화면·API는 17-4에서 신설한다.** `report_status`(`REVIEWING`/`RESOLVED`/`DISMISSED`)와 `users.account_status`(`SUSPENDED`/`DISABLED`)를 실제로 바꾸는 코드 경로를 이번 버전에서 추가한다.
-- 자동 제재·평점 시스템은 여전히 다음 버전 과제로 남는다.
+- 동료 간 매너평가는 8-5·17-5에서 P0로 구현됐다. 다만 **신고 검토 결과를 매너 포만도에 자동 반영하는 관리자 연동은 여전히 다음 버전(P1) 과제**로 남는다 — 신고 접수만으로는 점수가 자동 차감되지 않는다(MANNER-07).
 
 ### 17-4. 관리자 기능 (v2.3 신규 — 구현됨)
 
@@ -922,6 +988,29 @@ MVP는 화면만 연결된 프로토타입이 아니라, **서로 다른 계정�
 - **마스터데이터(활동 지역 zone) CRUD** — §17-1에서 4개 권역이 이미 확정·고정됨. 관리자가 임의로 추가/삭제하게 하면 그 결정을 무력화한다.
 - **공지사항 작성/수정** — PRD에 없던 신규 기능이라 이번 범위(신고 처리 공백 해소)와 무관해 제외.
 - **신고와 무관한 직권 조치용 별도 감사 로그 테이블** — 신고 기반 조치는 `admin_note`/`reviewed_at`으로 이미 추적 가능. 그 밖의 감사 로그는 이번 MVP 바를 넘는 범위.
+
+### 17-5. 매너 포만도 및 성장형 아바타 (v2.8 신규 — P0 구현됨)
+
+원 기획안(별도로 공유된 "매너 포만도 및 성장형 아바타 기능 명세")은 스스로를 **MVP 이후 고도화 기능**으로 규정했다. 그 문서의 P0 슬라이스만 잘라 구현했고, 아바타 비주얼은 원안의 커스텀 SVG 캐릭터 대신 **이모지+색상 배지**로 축소했다 — 별도 일러스트 리소스 없이 바로 구현 가능하고, `avatar_color`/`avatar_stage` 같은 키만 저장해 두면 나중에 진짜 SVG 캐릭터로 렌더러만 교체해도 API·데이터는 안 바뀐다.
+
+**확정 범위 (P0, 구현됨 — 8-5, 11-2, 11-3)**
+1. **평가 자격·권한** — 완료(ORDERED)된 공동주문의 모집자↔승인 참여자만, 자기 자신 제외, 동일 주문·동일 상대 1회, 완료 후 7일 이내. 참여자끼리 평가는 이번 범위에서 제외한다(모집자↔참여자 관계로 한정).
+2. **점수 계산 — 서버 전용** — 좋았어요 +1.5 / 보통 0 / 아쉬웠어요 -3, 0~100 clamp(DB CHECK 제약으로도 이중 보호). `manner_events`에 사유·변화량을 남긴다.
+3. **보복평가 방지** — 평가는 제출 즉시 상대에게 공개되지 않는다. 상대도 제출했으면 즉시, 아니면 48시간이 지난 뒤 다음 조회 시점에 반영된다(크론 없이 §10-3③과 동일한 lazy 판정 방식).
+4. **신규 유저 보호** — 평가 3개 미만이면 점수를 숨기고 "새로운 메이트"로만 표시한다.
+5. **5단계 배지** — 허기 경보 / 출출한 메이트 / 든든한 메이트 / 배부른 메이트 / 행복한 먹메이트(+ 신규 유저 상태). 이모지+색상 배지로 마이페이지·공개 프로필 화면에 노출.
+6. **공개 프로필 화면 신설** — 기존 13개 화면 목록(6-2)에 없던 `/users/:id`. 닉네임, 매너 배지, 완료한 공동주문 횟수, 신고 버튼(기존 `ReportModal`을 방·메시지 컨텍스트 없이 재사용).
+7. **모집글 상세의 평가 진입점** — 새 알림 타입을 추가하지 않고, `ORDERED` 상태에서 미제출 평가가 있으면 상세 화면에 배너 CTA로 안내한다.
+
+**이번 범위에서 제외 (P1 이후, + 이유)**
+- **아바타 의상 색상·소품 커스터마이징** — 원안 6장의 개인화 기능. 스키마·API에 커스터마이징 필드를 아직 두지 않았다.
+- **커스텀 SVG 캐릭터 일러스트** — 별도 그래픽 리소스 제작이 필요해 P0에서는 이모지+색상 배지로 대체했다.
+- **많이 받은 긍정 태그 집계 표시** — 태그 자체(`manner_reviews.tags`)는 저장하지만, 집계해서 보여주는 UI는 P1.
+- **채팅방 목록·참여자 목록·참여 신청 관리 화면에 배지 노출** — P0는 마이페이지·공개 프로필로 노출 범위를 한정했다.
+- **평가 요청/반영 알림** — 새 알림 타입을 만들지 않고 기존 `POT_COMPLETED` 알림과 모집글 상세 배너로 갈음했다.
+- **신고 검토 결과의 매너 이벤트 자동 연동(관리자)** — `manner_events.reason_code`에 관리자 제재용 값을 넣을 여지는 남겨뒀으나(P0는 `'PEER_REVIEW'` 고정), 신고 처리 화면(17-4)에서 실제로 매너 이벤트를 발생시키는 코드 경로는 아직 없다.
+
+12장의 "고도화된 평점·등급·포인트·쿠폰 시스템" 비목표와 배치되지 않는다 — 순위표·아이템 결제·AI 자동 판정 같은 "고도화된" 요소는 여전히 하지 않고, 신뢰 지표의 최소 형태만 구현했다.
 
 ---
 
