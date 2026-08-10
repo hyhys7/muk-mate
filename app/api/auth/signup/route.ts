@@ -4,7 +4,9 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 
 import { getDb, getPgErrorCode } from '@/lib/db'
-import { users, zones } from '@/lib/db/schema'
+import { mannerProfiles, users, zones } from '@/lib/db/schema'
+import { MANNER_AVATAR_COLOR_META } from '@/lib/constants'
+import type { MannerAvatarColor } from '@/lib/types'
 
 const LOGIN_ID_MIN = 4
 const LOGIN_ID_MAX = 10
@@ -25,6 +27,11 @@ export async function POST(request: Request) {
   const password = typeof body.password === 'string' ? body.password : ''
   const nickname = typeof body.nickname === 'string' ? body.nickname.trim() : ''
   const zoneCode = typeof body.zoneCode === 'string' ? body.zoneCode : ''
+  // v2.15: 온보딩에서 아바타 색상을 함께 고를 수 있다(선택) — 잘못된 값이 와도 가입 자체는 막지 않고 기본값으로 처리
+  const avatarColor: MannerAvatarColor =
+    typeof body.avatarColor === 'string' && body.avatarColor in MANNER_AVATAR_COLOR_META
+      ? (body.avatarColor as MannerAvatarColor)
+      : 'NAVY'
 
   if (loginId.length < LOGIN_ID_MIN || loginId.length > LOGIN_ID_MAX) {
     return NextResponse.json(
@@ -64,6 +71,10 @@ export async function POST(request: Request) {
       .insert(users)
       .values({ loginId, passwordHash, nickname, zoneCode })
       .returning({ id: users.id, nickname: users.nickname, zoneCode: users.zoneCode })
+
+    // 매너 프로필은 첫 접근 시 lazy 생성이 기본(ensureMannerProfile)이지만, 온보딩에서 고른
+    // 색상을 반영하려면 가입 시점에 먼저 만들어 둬야 한다 — 소품은 기본값(NONE) 그대로.
+    await db.insert(mannerProfiles).values({ userId: created.id, avatarColor }).onConflictDoNothing({ target: mannerProfiles.userId })
 
     return NextResponse.json({ user: created }, { status: 201 })
   } catch (err) {
