@@ -19,9 +19,9 @@ import {
   Users,
 } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
+import { MannerAvatar } from '@/components/manner-avatar'
 import { MannerBadge } from '@/components/manner-badge'
 import { ApprovalBadge, PotStatusBadge } from '@/components/status-badge'
-import { StoreAvatar } from '@/components/store-avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import {
@@ -58,7 +58,12 @@ export function MyPageView({
 
       {/* 1. 프로필 카드 */}
       <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-4">
-        <StoreAvatar name={me.nickname} className="size-12 text-lg" />
+        <MannerAvatar
+          stage={manner.stage}
+          color={manner.avatarColor}
+          accessory={manner.avatarAccessory}
+          className="size-12"
+        />
         <div className="min-w-0 flex-1">
           <p className="truncate text-base font-bold text-foreground">{me.nickname}</p>
           <p className="text-sm text-muted-foreground">{zoneLabel(me.zoneCode)}</p>

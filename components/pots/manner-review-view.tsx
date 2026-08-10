@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { CheckCircle2 } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
+import { MannerAvatar } from '@/components/manner-avatar'
 import { MannerBadge } from '@/components/manner-badge'
-import { StoreAvatar } from '@/components/store-avatar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { submitMannerReview } from '@/lib/api'
@@ -76,7 +76,12 @@ function ReviewCard({
   if (target.alreadyReviewed) {
     return (
       <Card className="flex items-center gap-3 p-4 opacity-70">
-        <StoreAvatar name={target.nickname} className="size-9 text-sm" />
+        <MannerAvatar
+          stage={target.manner.stage}
+          color={target.manner.avatarColor}
+          accessory={target.manner.avatarAccessory}
+          className="size-9"
+        />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <p className="text-sm font-semibold text-foreground">{target.nickname}</p>
           <MannerBadge
@@ -119,7 +124,12 @@ function ReviewCard({
   return (
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-center gap-3">
-        <StoreAvatar name={target.nickname} className="size-9 text-sm" />
+        <MannerAvatar
+          stage={target.manner.stage}
+          color={target.manner.avatarColor}
+          accessory={target.manner.avatarAccessory}
+          className="size-9"
+        />
         <div className="flex min-w-0 flex-col gap-1">
           <p className="text-sm font-bold text-foreground">{target.nickname}</p>
           <MannerBadge

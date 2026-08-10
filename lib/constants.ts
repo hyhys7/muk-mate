@@ -42,21 +42,22 @@ export const APPROVAL_META: Record<Approval, { label: string; token: string }> =
 }
 
 /** 매너 포만도 단계별 라벨 + 이모지(§5) — 실제 색상 클래스는 components/manner-badge.tsx가 담당 */
+// §5 "그릇 상태" 서사(빈 그릇 → 푸짐한 밥상)를 이모지로도 살린다 — 표정 이모지 대신 음식/그릇 테마로 통일
 export const MANNER_STAGE_META: Record<MannerStage, { label: string; emoji: string }> = {
-  NEW: { label: '새로운 메이트', emoji: '🌱' },
-  STARVING: { label: '허기 경보', emoji: '😩' },
-  PECKISH: { label: '출출한 메이트', emoji: '😕' },
-  STEADY: { label: '든든한 메이트', emoji: '🙂' },
-  FULL: { label: '배부른 메이트', emoji: '😊' },
-  HAPPY: { label: '행복한 먹메이트', emoji: '🤩' },
+  NEW: { label: '새로운 메이트', emoji: '🍽️' },
+  STARVING: { label: '허기 경보', emoji: '🥄' },
+  PECKISH: { label: '출출한 메이트', emoji: '🍙' },
+  STEADY: { label: '든든한 메이트', emoji: '🍚' },
+  FULL: { label: '배부른 메이트', emoji: '🍱' },
+  HAPPY: { label: '행복한 먹메이트', emoji: '🍛✨' },
 }
 
-/** 아바타 의상 색상(원 기획안 §6-1/§6-2, v2.9 P1) */
-export const MANNER_AVATAR_COLOR_META: Record<MannerAvatarColor, { label: string; hex: string }> = {
-  NAVY: { label: '네이비', hex: '#202937' },
-  CORAL: { label: '코랄', hex: '#E97865' },
-  MINT: { label: '파스텔 민트', hex: '#BEDCCB' },
-  BUTTER_YELLOW: { label: '버터 옐로', hex: '#F4D88A' },
+// feature: 얼굴 이목구비 색상 — 네이비(어두운 배경)는 크림, 나머지(밝은/중간 배경)는 네이비로 대비를 항상 보장한다
+export const MANNER_AVATAR_COLOR_META: Record<MannerAvatarColor, { label: string; hex: string; feature: string }> = {
+  NAVY: { label: '네이비', hex: '#202937', feature: '#FFF7EC' },
+  CORAL: { label: '코랄', hex: '#E97865', feature: '#202937' },
+  MINT: { label: '파스텔 민트', hex: '#BEDCCB', feature: '#202937' },
+  BUTTER_YELLOW: { label: '버터 옐로', hex: '#F4D88A', feature: '#202937' },
 }
 
 /** 아바타 소품(원 기획안 §6-1, v2.9 P1) — 표정·자세는 매너 단계로 고정, 이것만 사용자가 고른다 */

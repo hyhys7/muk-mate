@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
+import { MannerAvatar } from '@/components/manner-avatar'
 import { MannerBadge } from '@/components/manner-badge'
 import { ReportModal } from '@/components/chat/report-modal'
-import { StoreAvatar } from '@/components/store-avatar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { MANNER_TAG_META } from '@/lib/constants'
@@ -29,7 +29,12 @@ export function UserProfileView({
       <AppHeader title="프로필" showBack />
 
       <div className="flex flex-col items-center gap-3 border-b border-border bg-card px-4 py-8">
-        <StoreAvatar name={user.nickname} className="size-16 text-2xl" />
+        <MannerAvatar
+          stage={manner.stage}
+          color={manner.avatarColor}
+          accessory={manner.avatarAccessory}
+          className="size-16"
+        />
         <p className="text-lg font-bold text-foreground">{user.nickname}</p>
         <MannerBadge
           stage={manner.stage}

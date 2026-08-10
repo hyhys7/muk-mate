@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Check, Info } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
+import { MannerAvatar } from '@/components/manner-avatar'
 import { MannerBadge } from '@/components/manner-badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -40,6 +41,7 @@ export function AvatarCustomizeView({ manner }: { manner: MannerProfile }) {
       <AppHeader title="아바타 꾸미기" showBack />
 
       <div className="flex flex-col items-center gap-2 border-b border-border bg-muted/30 px-4 py-6">
+        <MannerAvatar stage={manner.stage} color={color} accessory={accessory} className="size-24" />
         <MannerBadge
           stage={manner.stage}
           score={manner.score}
