@@ -126,6 +126,8 @@ export interface Message {
   content: string
   createdAt: string
   isMine: boolean
+  /** SYSTEM 메시지는 없음(senderId가 없으니까) */
+  manner?: MannerAvatarInfo
 }
 
 /** 읽음 표시(v2.5) — ORDER 채팅방 참여자별 마지막으로 읽은 메시지 id */

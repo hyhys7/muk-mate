@@ -729,6 +729,10 @@ export async function getMessagesForRoom(
     .where(and(eq(messages.roomId, roomId), gt(messages.id, afterId)))
     .orderBy(asc(messages.id))
 
+  // v2.14: 메시지 발신자 옆에도 매너 아바타 노출 — SYSTEM 메시지(senderId 없음)는 대상에서 제외
+  const senderIds = rows.map((r) => r.senderId).filter((id): id is string => Boolean(id))
+  const mannerMap = await getMannerAvatarsForUsers(senderIds)
+
   return rows.map((r) => ({
     id: String(r.id),
     roomId: r.roomId,
@@ -738,6 +742,7 @@ export async function getMessagesForRoom(
     content: r.content,
     createdAt: r.createdAt.toISOString(),
     isMine: r.senderId === viewerId,
+    manner: r.senderId ? mannerMap.get(r.senderId) : undefined,
   }))
 }
 

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 
 import { ReportModal } from '@/components/chat/report-modal'
+import { MannerAvatar } from '@/components/manner-avatar'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -331,39 +332,54 @@ export function ChatRoomView({
           return (
             <div key={m.id} ref={(el) => { if (el) messageRefs.current.set(m.id, el) }}>
               {showDivider && <DateDivider iso={m.createdAt} />}
-              <div className={cn('flex flex-col gap-0.5', m.isMine ? 'items-end' : 'items-start')}>
-                {showNickname && (
-                  <span className="px-1 text-xs font-semibold text-muted-foreground">{m.senderNickname}</span>
+              <div className={cn('flex gap-2', m.isMine ? 'flex-row-reverse' : 'flex-row')}>
+                {/* 발신자 아바타(v2.14) — 같은 사람이 연달아 보낸 메시지는 첫 줄에만 표시, 나머지는 자리만 비운다 */}
+                {!m.isMine && (
+                  <div className="w-7 shrink-0 self-end">
+                    {showNickname && m.manner && (
+                      <MannerAvatar
+                        stage={m.manner.stage}
+                        color={m.manner.avatarColor}
+                        accessory={m.manner.avatarAccessory}
+                        className="size-7"
+                      />
+                    )}
+                  </div>
                 )}
-                <div className={cn('group relative flex items-end gap-1.5', m.isMine ? 'flex-row-reverse' : 'flex-row')}>
-                  <div
-                    className={cn(
-                      'max-w-64 rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap',
-                      m.isMine
-                        ? 'rounded-br-sm bg-primary text-primary-foreground'
-                        : 'rounded-bl-sm bg-muted text-foreground',
-                    )}
-                  >
-                    {m.content}
-                  </div>
-                  <div className="flex shrink-0 flex-col items-center gap-0.5">
-                    {unreadCount > 0 && (
-                      <span className="text-[10px] font-bold leading-none text-primary">{unreadCount}</span>
-                    )}
-                    <span className="text-[11px] leading-none text-muted-foreground">{formatClock(m.createdAt)}</span>
-                  </div>
-
-                  {/* 타인 메시지 신고 버튼 (§7-1) */}
-                  {!m.isMine && (
-                    <button
-                      type="button"
-                      onClick={() => openReportMessage(m)}
-                      title="메시지 신고"
-                      className="opacity-0 group-hover:opacity-100 transition p-1 text-muted-foreground hover:text-destructive"
-                    >
-                      <Flag className="size-3.5" />
-                    </button>
+                <div className={cn('flex flex-col gap-0.5', m.isMine ? 'items-end' : 'items-start')}>
+                  {showNickname && (
+                    <span className="px-1 text-xs font-semibold text-muted-foreground">{m.senderNickname}</span>
                   )}
+                  <div className={cn('group relative flex items-end gap-1.5', m.isMine ? 'flex-row-reverse' : 'flex-row')}>
+                    <div
+                      className={cn(
+                        'max-w-64 rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap',
+                        m.isMine
+                          ? 'rounded-br-sm bg-primary text-primary-foreground'
+                          : 'rounded-bl-sm bg-muted text-foreground',
+                      )}
+                    >
+                      {m.content}
+                    </div>
+                    <div className="flex shrink-0 flex-col items-center gap-0.5">
+                      {unreadCount > 0 && (
+                        <span className="text-[10px] font-bold leading-none text-primary">{unreadCount}</span>
+                      )}
+                      <span className="text-[11px] leading-none text-muted-foreground">{formatClock(m.createdAt)}</span>
+                    </div>
+
+                    {/* 타인 메시지 신고 버튼 (§7-1) */}
+                    {!m.isMine && (
+                      <button
+                        type="button"
+                        onClick={() => openReportMessage(m)}
+                        title="메시지 신고"
+                        className="opacity-0 group-hover:opacity-100 transition p-1 text-muted-foreground hover:text-destructive"
+                      >
+                        <Flag className="size-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
