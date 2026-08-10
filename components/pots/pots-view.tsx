@@ -11,6 +11,8 @@ import { EmptyState } from '@/components/empty-state'
 import { Button } from '@/components/ui/button'
 import { ZONES } from '@/lib/constants'
 import { formatDeadline } from '@/lib/format'
+import { haversineDistanceMeters } from '@/lib/geo'
+import { useUserCoords } from '@/lib/hooks/use-user-coords'
 import type { Pot, ZoneCode } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -32,7 +34,20 @@ export function PotsView({ pots, initialZone }: { pots: Pot[]; initialZone: Zone
 
   const zoneLabelText = ZONES.find((z) => z.code === zone)?.label ?? '전체'
 
-  const zonePots = useMemo(() => pots.filter((p) => p.zoneCode === zone), [pots, zone])
+  const userCoords = useUserCoords()
+  const potsWithDistance = useMemo(() => {
+    if (!userCoords) return pots
+    return pots.map((p) =>
+      p.pickupLat != null && p.pickupLng != null
+        ? { ...p, distanceMeters: haversineDistanceMeters(userCoords.lat, userCoords.lng, p.pickupLat, p.pickupLng) }
+        : p,
+    )
+  }, [pots, userCoords])
+
+  const zonePots = useMemo(
+    () => potsWithDistance.filter((p) => p.zoneCode === zone),
+    [potsWithDistance, zone],
+  )
 
   const openStories = useMemo(
     () => zonePots.filter((p) => p.status === 'OPEN'),
@@ -44,7 +59,7 @@ export function PotsView({ pots, initialZone }: { pots: Pot[]; initialZone: Zone
     if (filter === 'OPEN') list = list.filter((p) => p.status === 'OPEN')
     if (filter === 'URGENT')
       list = list.filter((p) => p.status === 'OPEN' && formatDeadline(p.deadlineAt).urgent)
-    if (filter === 'NEAR') list.sort((a, b) => a.distanceMeters - b.distanceMeters)
+    if (filter === 'NEAR') list.sort((a, b) => (a.distanceMeters ?? Infinity) - (b.distanceMeters ?? Infinity))
 
     const q = query.trim().toLowerCase()
     if (q) {

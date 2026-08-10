@@ -7,6 +7,8 @@
 // ─────────────────────────────────────────────────────────────
 import type {
   AppNotification,
+  MannerAvatarAccessory,
+  MannerAvatarColor,
   MannerProfile,
   MannerRating,
   MannerReviewStatus,
@@ -47,6 +49,8 @@ export async function createPot(input: {
   pickupLng?: number
   pickupNote?: string
   extraNote?: string
+  /** §5-4 분담 금액 계산용(P1, 선택) — 방장 본인의 예상 주문 금액 */
+  menuAmount?: number
 }): Promise<Pot> {
   const res = await fetch('/api/pots', {
     method: 'POST',
@@ -68,6 +72,28 @@ export async function updatePotStatus(potId: string, status: PotStatus): Promise
   return data.pot
 }
 
+/** 모집글 필드 수정(가게·수령장소·모집방식·활동권역 제외) — PATCH /api/pots/:id, 모집자 전용, OPEN 상태에서만 (ORDER-08) */
+export async function updatePot(
+  potId: string,
+  input: {
+    orderSummary: string
+    targetValue: number
+    deliveryFee: number
+    deadlineAt: string
+    pickupAt?: string
+    pickupNote?: string
+    extraNote?: string
+  },
+): Promise<Pot> {
+  const res = await fetch(`/api/pots/${potId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const data = await parseJsonResponse<{ pot: Pot }>(res)
+  return data.pot
+}
+
 /** 모집글 삭제 — DELETE /api/pots/:id, 모집자 전용 · 참여자가 없을 때만 가능 */
 export async function deletePot(potId: string): Promise<void> {
   const res = await fetch(`/api/pots/${potId}`, {
@@ -77,11 +103,11 @@ export async function deletePot(potId: string): Promise<void> {
 }
 
 /** 참여 신청 — POST /api/pots/:id/join */
-export async function requestJoinPot(potId: string, menuMemo?: string): Promise<Participation> {
+export async function requestJoinPot(potId: string, menuMemo?: string, menuAmount?: number): Promise<Participation> {
   const res = await fetch(`/api/pots/${potId}/join`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ menuMemo }),
+    body: JSON.stringify({ menuMemo, menuAmount }),
   })
   const data = await parseJsonResponse<{ participation: Participation }>(res)
   return data.participation
@@ -283,6 +309,20 @@ export async function getUserManner(userId: string): Promise<MannerProfile> {
 export async function getMannerReviewStatus(potId: string): Promise<MannerReviewStatus> {
   const res = await fetch(`/api/pots/${potId}/manner-review-status`)
   return parseJsonResponse<MannerReviewStatus>(res)
+}
+
+/** 아바타 색상·소품 변경 — PATCH /api/me/avatar */
+export async function updateAvatar(input: {
+  avatarColor: MannerAvatarColor
+  avatarAccessory: MannerAvatarAccessory
+}): Promise<MannerProfile> {
+  const res = await fetch('/api/me/avatar', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const data = await parseJsonResponse<{ manner: MannerProfile }>(res)
+  return data.manner
 }
 
 /** 매너평가 제출 — POST /api/pots/:id/manner-reviews, 제출 후 수정 불가 */

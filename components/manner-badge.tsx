@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
-import { MANNER_STAGE_META } from '@/lib/constants'
-import type { MannerStage } from '@/lib/types'
+import { MANNER_AVATAR_ACCESSORY_META, MANNER_AVATAR_COLOR_META, MANNER_STAGE_META } from '@/lib/constants'
+import type { MannerAvatarAccessory, MannerAvatarColor, MannerStage } from '@/lib/types'
 
 const STAGE_CLASS: Record<MannerStage, string> = {
   NEW: 'bg-muted text-muted-foreground',
@@ -15,15 +15,21 @@ export function MannerBadge({
   stage,
   score,
   reviewCount,
+  avatarColor,
+  avatarAccessory,
   className,
 }: {
   stage: MannerStage
   /** null이면(리뷰 3개 미만) 점수는 표시하지 않는다(§4-1) */
   score: number | null
   reviewCount?: number
+  /** 사용자가 고른 아바타 색상 — 배지 배경은 여전히 매너 단계가 결정한다(§6-4), 이건 왼쪽 점으로만 표시 */
+  avatarColor?: MannerAvatarColor
+  avatarAccessory?: MannerAvatarAccessory
   className?: string
 }) {
   const meta = MANNER_STAGE_META[stage]
+  const accessoryEmoji = avatarAccessory ? MANNER_AVATAR_ACCESSORY_META[avatarAccessory].emoji : ''
 
   return (
     <span
@@ -34,8 +40,16 @@ export function MannerBadge({
       )}
       title={typeof reviewCount === 'number' ? `평가 ${reviewCount}개 기준` : undefined}
     >
+      {avatarColor && (
+        <span
+          aria-hidden
+          className="size-2 shrink-0 rounded-full ring-1 ring-black/10"
+          style={{ backgroundColor: MANNER_AVATAR_COLOR_META[avatarColor].hex }}
+        />
+      )}
       <span aria-hidden>{meta.emoji}</span>
       {score !== null ? `매너 포만도 ${Math.round(score)}점 · ${meta.label}` : meta.label}
+      {accessoryEmoji && <span aria-hidden>{accessoryEmoji}</span>}
     </span>
   )
 }

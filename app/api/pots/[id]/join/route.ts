@@ -7,6 +7,7 @@ import { createNotification } from '@/lib/notifications'
 import { computeEffectiveStatus, getSessionUserOrNull } from '@/lib/server-data'
 
 const APPLY_MESSAGE_MAX = 200
+const MENU_AMOUNT_MAX = 1_000_000
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const me = await getSessionUserOrNull()
@@ -33,6 +34,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (menuMemo.length > APPLY_MESSAGE_MAX) {
     return NextResponse.json({ code: 'INVALID_INPUT', error: '메모가 너무 깁니다.' }, { status: 400 })
+  }
+
+  // §5-4 분담 금액 계산용(P1, 선택 입력) — 안 주면 0으로 처리
+  const menuAmount = Number.isFinite(Number(body?.menuAmount)) ? Math.max(0, Number(body.menuAmount)) : 0
+  if (menuAmount > MENU_AMOUNT_MAX) {
+    return NextResponse.json({ code: 'INVALID_INPUT', error: '주문 금액을 확인해주세요.' }, { status: 400 })
   }
 
   const db = getDb()
@@ -112,6 +119,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       potId,
       userId: me.id,
       applyMessage: menuMemo || null,
+      menuAmount,
       approvalStatus: 'PENDING',
     })
     .onConflictDoUpdate({
@@ -119,6 +127,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       set: {
         approvalStatus: 'PENDING',
         applyMessage: menuMemo || null,
+        menuAmount,
         createdAt: new Date(),
       },
     })
@@ -154,6 +163,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         potId: inserted.potId,
         userId: inserted.userId,
         applyMessage: inserted.applyMessage ?? '',
+        menuAmount: inserted.menuAmount ?? 0,
         approvalStatus: inserted.approvalStatus,
         createdAt: inserted.createdAt.toISOString(),
       },

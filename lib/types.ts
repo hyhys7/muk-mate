@@ -55,6 +55,8 @@ export interface Pot {
   zoneCode: ZoneCode
   storeName: string
   storeAddress: string
+  storeLat?: number
+  storeLng?: number
   orderSummary: string
   targetType: TargetType
   /** HEADCOUNT면 목표 인원, AMOUNT면 목표 금액(원) */
@@ -68,11 +70,14 @@ export interface Pot {
   pickupAt: string
   pickupName: string
   pickupAddress: string
+  pickupLat?: number
+  pickupLng?: number
   pickupNote: string
   extraNote: string
   status: PotStatus
   isLocationVerified: boolean
-  distanceMeters: number
+  /** 클라이언트에서 위치 권한을 허용했을 때만 채워진다(§9-3) — 서버는 항상 null을 내려준다 */
+  distanceMeters: number | null
   viewerState?: ViewerState
   approvedCount?: number
   pendingCount?: number
@@ -151,11 +156,18 @@ export type MannerRating = 'GOOD' | 'NEUTRAL' | 'BAD'
 /** 매너 포만도 5단계 + 신규 유저 상태(§5) — 낮은 순 → 높은 순 */
 export type MannerStage = 'NEW' | 'STARVING' | 'PECKISH' | 'STEADY' | 'FULL' | 'HAPPY'
 
+export type MannerAvatarColor = 'NAVY' | 'CORAL' | 'MINT' | 'BUTTER_YELLOW'
+export type MannerAvatarAccessory = 'NONE' | 'GLASSES' | 'SCARF' | 'BAG' | 'HAT'
+
 export interface MannerProfile {
   /** reviewCount < 3이면 점수는 비공개(§4-1) — null로 표현 */
   score: number | null
   stage: MannerStage
   reviewCount: number
+  /** 많이 받은 긍정 태그 코드, 최대 3개 — score와 동일하게 reviewCount < 3이면 빈 배열 */
+  topTags: string[]
+  avatarColor: MannerAvatarColor
+  avatarAccessory: MannerAvatarAccessory
 }
 
 export interface MannerReviewTarget {

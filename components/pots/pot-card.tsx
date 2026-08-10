@@ -63,8 +63,12 @@ export function PotCard({ pot, index }: { pot: Pot; index?: number }) {
             <div className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
               <MapPin className="size-4 shrink-0" />
               <span className="line-clamp-1">{pot.pickupName}</span>
-              <span className="text-muted-foreground/60">·</span>
-              <span className="shrink-0">{formatDistance(pot.distanceMeters)}</span>
+              {pot.distanceMeters != null && (
+                <>
+                  <span className="text-muted-foreground/60">·</span>
+                  <span className="shrink-0">{formatDistance(pot.distanceMeters)}</span>
+                </>
+              )}
             </div>
           </div>
         </div>

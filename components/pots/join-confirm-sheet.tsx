@@ -2,16 +2,18 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 
 interface JoinConfirmSheetProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (menuMemo: string) => Promise<void>
+  onSubmit: (menuMemo: string, menuAmount: number) => Promise<void>
 }
 
 export function JoinConfirmSheet({ isOpen, onClose, onSubmit }: JoinConfirmSheetProps) {
   const [menuMemo, setMenuMemo] = useState('')
+  const [menuAmount, setMenuAmount] = useState<number>(0)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -22,8 +24,9 @@ export function JoinConfirmSheet({ isOpen, onClose, onSubmit }: JoinConfirmSheet
     setSubmitting(true)
     setError(null)
     try {
-      await onSubmit(menuMemo.trim())
+      await onSubmit(menuMemo.trim(), menuAmount)
       setMenuMemo('')
+      setMenuAmount(0)
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : '참여 신청에 실패했습니다.')
@@ -65,6 +68,22 @@ export function JoinConfirmSheet({ isOpen, onClose, onSubmit }: JoinConfirmSheet
             <div className="mt-1 text-right text-[11px] text-muted-foreground">
               {menuMemo.length} / 100자
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="menuAmount" className="block text-xs font-semibold text-muted-foreground">
+              내 주문 금액 (선택, 원)
+            </label>
+            <Input
+              id="menuAmount"
+              type="number"
+              min={0}
+              step={500}
+              value={menuAmount}
+              onChange={(e) => setMenuAmount(Number(e.target.value))}
+              className="mt-1.5 h-11 rounded-xl"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">배달비 분담 계산에 쓰여요.</p>
           </div>
 
           <div className="flex gap-2 pt-2">

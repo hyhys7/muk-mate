@@ -240,6 +240,10 @@ export const mannerProfiles = pgTable(
     reviewCount: integer('review_count').notNull().default(0),
     positiveCount: integer('positive_count').notNull().default(0),
     negativeCount: integer('negative_count').notNull().default(0),
+    // v2.9(P1): 아바타 커스터마이징. 매너 단계별 표정·자세는 여전히 서버가 stage로만 결정하고
+    // 바꿀 수 없다 — 여기 저장하는 건 사용자가 고를 수 있는 색상·소품 "키"뿐(이미지 URL 아님).
+    avatarColor: text('avatar_color').notNull().default('NAVY'),
+    avatarAccessory: text('avatar_accessory').notNull().default('NONE'),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [check('manner_profiles_score_check', sql`${table.score} >= 0 AND ${table.score} <= 100`)],

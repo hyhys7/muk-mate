@@ -32,7 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { zoneLabel } from '@/lib/constants'
+import { MANNER_TAG_META, zoneLabel } from '@/lib/constants'
 import { formatDateTime, formatWon } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { MannerProfile, Participation, Pot, ZoneCode } from '@/lib/types'
@@ -66,16 +66,39 @@ export function MyPageView({
             stage={manner.stage}
             score={manner.score}
             reviewCount={manner.reviewCount}
+            avatarColor={manner.avatarColor}
+            avatarAccessory={manner.avatarAccessory}
             className="mt-1.5"
           />
+          {manner.topTags.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {manner.topTags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                >
+                  {MANNER_TAG_META.GOOD[tag] ?? tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-        <Link
-          href="/my/edit"
-          className="flex shrink-0 items-center gap-0.5 text-sm font-semibold text-primary transition hover:underline"
-        >
-          정보 수정
-          <ChevronRight className="size-4" />
-        </Link>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <Link
+            href="/my/edit"
+            className="flex items-center gap-0.5 text-sm font-semibold text-primary transition hover:underline"
+          >
+            정보 수정
+            <ChevronRight className="size-4" />
+          </Link>
+          <Link
+            href="/my/avatar"
+            className="flex items-center gap-0.5 text-xs font-semibold text-muted-foreground transition hover:underline"
+          >
+            아바타 꾸미기
+            <ChevronRight className="size-3.5" />
+          </Link>
+        </div>
       </div>
 
       {/* 2. 내 활동 요약 카드 */}

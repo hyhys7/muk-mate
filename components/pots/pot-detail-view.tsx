@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft, Check, Clock, MapPin, Share2, ShieldCheck, Smile, Trash2, Truck, Users } from 'lucide-react'
+import { ArrowLeft, Check, Clock, MapPin, Pencil, Share2, ShieldCheck, Smile, Trash2, Truck, Users } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -14,6 +14,9 @@ import { Progress } from '@/components/ui/progress'
 import { cancelJoinPot, decideMemberApplication, deletePot, requestJoinPot, updatePotStatus } from '@/lib/api'
 import { zoneLabel } from '@/lib/constants'
 import { getFoodEmoji } from '@/lib/food-emoji'
+import { haversineDistanceMeters } from '@/lib/geo'
+import { useUserCoords } from '@/lib/hooks/use-user-coords'
+import { computeSplitCost } from '@/lib/split-cost'
 import {
   formatDateTime,
   formatDeadline,
@@ -30,12 +33,15 @@ export function PotDetailView({
   initialRequests = [],
   isHost,
   mannerReviewStatus,
+  hostMenuAmount = 0,
 }: {
   pot: Pot
   participations: Participation[]
   initialRequests?: PendingRequest[]
   isHost: boolean
   mannerReviewStatus?: MannerReviewStatus
+  /** §5-4 분담 금액 계산용(P1) — 방장 본인의 참여 행에 담긴 주문 금액 */
+  hostMenuAmount?: number
 }) {
   const router = useRouter()
   const [viewerState, setViewerState] = useState<ViewerState>(
@@ -58,14 +64,32 @@ export function PotDetailView({
     : Math.min((approvedCount / pot.targetValue) * 100, 100)
 
   const approved = participations.filter((p) => p.approvalStatus === 'APPROVED')
+
+  // §5-4 분담 금액(P1) — 확정 참여자가 있을 때만 계산해서 보여준다
+  const splitCost =
+    approved.length > 0
+      ? computeSplitCost(
+          [
+            { userId: pot.hostId, nickname: pot.hostNickname, isHost: true, menuAmount: hostMenuAmount },
+            ...approved.map((p) => ({ userId: p.userId, nickname: p.nickname, isHost: false, menuAmount: p.menuAmount })),
+          ],
+          pot.deliveryFee,
+        )
+      : []
+
+  const userCoords = useUserCoords()
+  const distanceMeters =
+    userCoords && pot.pickupLat != null && pot.pickupLng != null
+      ? haversineDistanceMeters(userCoords.lat, userCoords.lng, pot.pickupLat, pot.pickupLng)
+      : null
   const pendingReviewCount = mannerReviewStatus?.eligible
     ? mannerReviewStatus.targets.filter((t) => !t.alreadyReviewed).length
     : 0
 
-  async function handleJoinSubmit(menuMemo: string) {
+  async function handleJoinSubmit(menuMemo: string, menuAmount: number) {
     setLoading(true)
     try {
-      await requestJoinPot(pot.id, menuMemo)
+      await requestJoinPot(pot.id, menuMemo, menuAmount)
       setViewerState('PENDING')
       router.refresh()
     } finally {
@@ -153,14 +177,25 @@ export function PotDetailView({
           <ArrowLeft className="size-5" />
         </button>
         <span className="text-base font-bold text-foreground">공동주문 상세</span>
-        <button
-          type="button"
-          onClick={handleShare}
-          aria-label="공유"
-          className="flex size-11 items-center justify-center rounded-full text-foreground transition active:scale-[0.95] hover:bg-muted"
-        >
-          {shared ? <Check className="size-5 text-status-ordered" /> : <Share2 className="size-5" />}
-        </button>
+        <div className="flex items-center">
+          {isHost && pot.status === 'OPEN' && (
+            <Link
+              href={`/pots/${pot.id}/edit`}
+              aria-label="수정"
+              className="flex size-11 items-center justify-center rounded-full text-foreground transition active:scale-[0.95] hover:bg-muted"
+            >
+              <Pencil className="size-5" />
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={handleShare}
+            aria-label="공유"
+            className="flex size-11 items-center justify-center rounded-full text-foreground transition active:scale-[0.95] hover:bg-muted"
+          >
+            {shared ? <Check className="size-5 text-status-ordered" /> : <Share2 className="size-5" />}
+          </button>
+        </div>
       </header>
 
       {/* 가게/상태 */}
@@ -272,9 +307,11 @@ export function PotDetailView({
               {pot.pickupNote && (
                 <p className="mt-0.5 text-sm text-muted-foreground">{pot.pickupNote}</p>
               )}
-              <p className="mt-0.5 text-xs font-medium text-primary">
-                현재 위치에서 {formatDistance(pot.distanceMeters)}
-              </p>
+              {distanceMeters != null && (
+                <p className="mt-0.5 text-xs font-medium text-primary">
+                  현재 위치에서 {formatDistance(distanceMeters)}
+                </p>
+              )}
             </div>
           </li>
           <li className="flex gap-3">
@@ -353,6 +390,37 @@ export function PotDetailView({
           </button>
         )}
       </section>
+
+      {/* 분담 금액 (§5-4, P1) */}
+      {splitCost.length > 0 && (
+        <section className="border-t border-border px-4 py-4">
+          <div className="flex items-center gap-1.5">
+            <Truck className="size-4 text-muted-foreground" />
+            <h2 className="text-sm font-bold text-muted-foreground">참여자별 예상 분담 금액</h2>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            주문 금액은 각자 입력값 그대로, 배달비만 10원 단위로 올림해 나눠요. 나머지는 방장이 부담해요.
+          </p>
+          <ul className="mt-3 flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border">
+            {splitCost.map((entry) => (
+              <li key={entry.userId} className="flex items-center justify-between gap-2 px-3 py-2.5">
+                <span className="flex min-w-0 items-center gap-1 text-sm font-semibold text-foreground">
+                  <span className="truncate">{entry.nickname}</span>
+                  {entry.isHost && (
+                    <span className="shrink-0 rounded-full bg-primary-soft px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                      방장
+                    </span>
+                  )}
+                </span>
+                <span className="shrink-0 text-right text-xs text-muted-foreground">
+                  {formatWon(entry.menuAmount)} + 배달비 {formatWon(entry.deliveryShare)}
+                  <span className="ml-1.5 font-bold text-foreground">{formatWon(entry.total)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* 하단 고정 CTA */}
       <JoinButton

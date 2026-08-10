@@ -25,6 +25,8 @@ import { resolveViewerState } from '@/lib/pots/viewer-state'
 import type {
   AppNotification,
   ChatRoom,
+  MannerAvatarAccessory,
+  MannerAvatarColor,
   MannerProfile,
   MannerRating,
   MannerReviewStatus,
@@ -73,6 +75,8 @@ const potColumns = {
   pickupAt: pots.pickupAt,
   pickupName: pots.pickupName,
   pickupAddress: pots.pickupAddress,
+  pickupLat: pots.pickupLat,
+  pickupLng: pots.pickupLng,
   pickupNote: pots.pickupNote,
   extraNote: pots.extraNote,
   status: pots.status,
@@ -96,6 +100,8 @@ type PotRow = {
   pickupAt: Date | null
   pickupName: string
   pickupAddress: string | null
+  pickupLat: string | null
+  pickupLng: string | null
   pickupNote: string | null
   extraNote: string | null
   status: PotStatus
@@ -110,6 +116,8 @@ function mapPotRow(row: PotRow, agg: { count: number; amount: number }): Pot {
     zoneCode: row.zoneCode as ZoneCode,
     storeName: row.storeName,
     storeAddress: row.storeAddress ?? '',
+    storeLat: row.storeLat ? Number(row.storeLat) : undefined,
+    storeLng: row.storeLng ? Number(row.storeLng) : undefined,
     orderSummary: row.orderSummary,
     targetType: row.targetType,
     targetValue: row.targetValue,
@@ -120,14 +128,16 @@ function mapPotRow(row: PotRow, agg: { count: number; amount: number }): Pot {
     pickupAt: row.pickupAt ? row.pickupAt.toISOString() : '',
     pickupName: row.pickupName,
     pickupAddress: row.pickupAddress ?? '',
+    pickupLat: row.pickupLat ? Number(row.pickupLat) : undefined,
+    pickupLng: row.pickupLng ? Number(row.pickupLng) : undefined,
     pickupNote: row.pickupNote ?? '',
     extraNote: row.extraNote ?? '',
     // §10-3③: 크론 없이 조회 시점에 마감 여부를 판정한다.
     status: computeEffectiveStatus(row.status, row.deadlineAt),
     // 카카오 로컬 API 검색 결과로 좌표까지 채워진 경우에만 "위치확인" — Phase 3 전까지는 항상 false
     isLocationVerified: Boolean(row.storeLat && row.storeLng),
-    // ORDER-10(P1, Phase 6)에서 클라이언트 Geolocation으로 채울 때까지는 표시하지 않음
-    distanceMeters: 0,
+    // ORDER-10(P1): 거리는 서버가 계산하지 않는다 — 클라이언트가 Geolocation 허용 시에만 채운다(§9-3)
+    distanceMeters: null,
     createdAt: row.createdAt.toISOString(),
   }
 }
@@ -404,6 +414,17 @@ export async function getMyApplications(
     })
   }
   return result
+}
+
+/** 호스트 본인의 참여 행에 담긴 주문 금액(§5-4 분담 계산용) — getParticipationsForPot는 호스트 행을 제외하므로 별도 조회 */
+export async function getHostMenuAmount(potId: string, hostId: string): Promise<number> {
+  const db = getDb()
+  const [row] = await db
+    .select({ menuAmount: participations.menuAmount })
+    .from(participations)
+    .where(and(eq(participations.potId, potId), eq(participations.userId, hostId)))
+    .limit(1)
+  return row?.menuAmount ?? 0
 }
 
 /**
@@ -911,13 +932,32 @@ async function applyDueMannerReviews(db: ReturnType<typeof getDb>, userId: strin
   }
 }
 
+/** 많이 받은 긍정 태그 상위 3개 — text[] 컬럼이라 unnest 집계는 raw SQL로 처리한다 */
+async function getTopPositiveTags(userId: string, limit = 3): Promise<string[]> {
+  const db = getDb()
+  const result = await db.execute<{ tag: string }>(sql`
+    SELECT tag, count(*) AS cnt
+    FROM manner_reviews, unnest(tags) AS tag
+    WHERE reviewee_id = ${userId} AND rating = 'GOOD' AND applied_at IS NOT NULL
+    GROUP BY tag
+    ORDER BY cnt DESC
+    LIMIT ${limit}
+  `)
+  return result.rows.map((r) => r.tag)
+}
+
 export async function getMannerProfile(userId: string): Promise<MannerProfile> {
   const db = getDb()
   await ensureMannerProfile(db, userId)
   await applyDueMannerReviews(db, userId)
 
   const [row] = await db
-    .select({ score: mannerProfiles.score, reviewCount: mannerProfiles.reviewCount })
+    .select({
+      score: mannerProfiles.score,
+      reviewCount: mannerProfiles.reviewCount,
+      avatarColor: mannerProfiles.avatarColor,
+      avatarAccessory: mannerProfiles.avatarAccessory,
+    })
     .from(mannerProfiles)
     .where(eq(mannerProfiles.userId, userId))
     .limit(1)
@@ -925,8 +965,30 @@ export async function getMannerProfile(userId: string): Promise<MannerProfile> {
   const reviewCount = row?.reviewCount ?? 0
   const scoreNum = row ? Number(row.score) : 50
   const stage = computeMannerStage(scoreNum, reviewCount)
+  const topTags = reviewCount < 3 ? [] : await getTopPositiveTags(userId)
 
-  return { score: reviewCount < 3 ? null : scoreNum, stage, reviewCount }
+  return {
+    score: reviewCount < 3 ? null : scoreNum,
+    stage,
+    reviewCount,
+    topTags,
+    avatarColor: (row?.avatarColor ?? 'NAVY') as MannerAvatarColor,
+    avatarAccessory: (row?.avatarAccessory ?? 'NONE') as MannerAvatarAccessory,
+  }
+}
+
+/** 아바타 색상·소품 변경(v2.9, P1) — 매너 단계 표정은 여기서 못 바꾼다(stage는 계산값) */
+export async function updateMannerAvatar(
+  userId: string,
+  avatarColor: MannerAvatarColor,
+  avatarAccessory: MannerAvatarAccessory,
+): Promise<void> {
+  const db = getDb()
+  await ensureMannerProfile(db, userId)
+  await db
+    .update(mannerProfiles)
+    .set({ avatarColor, avatarAccessory, updatedAt: new Date() })
+    .where(eq(mannerProfiles.userId, userId))
 }
 
 /** 공동주문 완료(ORDERED) 후 viewer가 평가할 수 있는 대상과 제출 여부(§7~8) */
@@ -1027,6 +1089,34 @@ export async function submitMannerReview(
   await applyDueMannerReviews(db, reviewerId)
 
   return { ok: true }
+}
+
+/** 관리자 제재 감점량(운영정책) — 정지(SUSPENDED)·비활성(DISABLED) 전환 1회당 적용, 일반 평가(§10)와 구분 */
+const ADMIN_SANCTION_DELTA = -10
+
+/**
+ * 관리자가 신고를 검토해 계정을 실제로 제재할 때만 호출한다 — 신고 접수만으로는 절대 호출하지 않는다(§11).
+ * 동료 평가(applyDueMannerReviews)와 달리 반영 지연 없이 즉시 적용하고, manner_events에
+ * 'ADMIN_SANCTION' 사유로 기록해 일반 평가와 구분한다.
+ */
+export async function applyAdminSanction(userId: string): Promise<void> {
+  const db = getDb()
+  await ensureMannerProfile(db, userId)
+
+  await db
+    .update(mannerProfiles)
+    .set({
+      score: sql`LEAST(100, GREATEST(0, ${mannerProfiles.score} + ${ADMIN_SANCTION_DELTA}))`,
+      updatedAt: new Date(),
+    })
+    .where(eq(mannerProfiles.userId, userId))
+
+  await db.insert(mannerEvents).values({
+    userId,
+    reviewId: null,
+    reasonCode: 'ADMIN_SANCTION',
+    delta: String(ADMIN_SANCTION_DELTA),
+  })
 }
 
 /** 공개 프로필 화면(§12-2)용 최소 사용자 조회 */

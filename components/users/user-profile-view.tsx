@@ -8,6 +8,7 @@ import { ReportModal } from '@/components/chat/report-modal'
 import { StoreAvatar } from '@/components/store-avatar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { MANNER_TAG_META } from '@/lib/constants'
 import type { MannerProfile } from '@/lib/types'
 
 export function UserProfileView({
@@ -30,7 +31,25 @@ export function UserProfileView({
       <div className="flex flex-col items-center gap-3 border-b border-border bg-card px-4 py-8">
         <StoreAvatar name={user.nickname} className="size-16 text-2xl" />
         <p className="text-lg font-bold text-foreground">{user.nickname}</p>
-        <MannerBadge stage={manner.stage} score={manner.score} reviewCount={manner.reviewCount} />
+        <MannerBadge
+          stage={manner.stage}
+          score={manner.score}
+          reviewCount={manner.reviewCount}
+          avatarColor={manner.avatarColor}
+          avatarAccessory={manner.avatarAccessory}
+        />
+        {manner.topTags.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-1">
+            {manner.topTags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+              >
+                {MANNER_TAG_META.GOOD[tag] ?? tag}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-3 p-4">

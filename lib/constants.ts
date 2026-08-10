@@ -1,4 +1,13 @@
-import type { Approval, MannerRating, MannerStage, PotStatus, Zone, ZoneCode } from '@/lib/types'
+import type {
+  Approval,
+  MannerAvatarAccessory,
+  MannerAvatarColor,
+  MannerRating,
+  MannerStage,
+  PotStatus,
+  Zone,
+  ZoneCode,
+} from '@/lib/types'
 
 /** signup(1단계) → onboarding(2단계) 사이에 임시로 들고 다니는 가입 정보의 sessionStorage 키 */
 export const SIGNUP_DRAFT_KEY = 'mukmate:signup-draft'
@@ -40,6 +49,23 @@ export const MANNER_STAGE_META: Record<MannerStage, { label: string; emoji: stri
   STEADY: { label: '든든한 메이트', emoji: '🙂' },
   FULL: { label: '배부른 메이트', emoji: '😊' },
   HAPPY: { label: '행복한 먹메이트', emoji: '🤩' },
+}
+
+/** 아바타 의상 색상(원 기획안 §6-1/§6-2, v2.9 P1) */
+export const MANNER_AVATAR_COLOR_META: Record<MannerAvatarColor, { label: string; hex: string }> = {
+  NAVY: { label: '네이비', hex: '#202937' },
+  CORAL: { label: '코랄', hex: '#E97865' },
+  MINT: { label: '파스텔 민트', hex: '#BEDCCB' },
+  BUTTER_YELLOW: { label: '버터 옐로', hex: '#F4D88A' },
+}
+
+/** 아바타 소품(원 기획안 §6-1, v2.9 P1) — 표정·자세는 매너 단계로 고정, 이것만 사용자가 고른다 */
+export const MANNER_AVATAR_ACCESSORY_META: Record<MannerAvatarAccessory, { label: string; emoji: string }> = {
+  NONE: { label: '없음', emoji: '' },
+  GLASSES: { label: '안경', emoji: '🕶️' },
+  SCARF: { label: '목도리', emoji: '🧣' },
+  BAG: { label: '가방', emoji: '👜' },
+  HAT: { label: '모자', emoji: '🎩' },
 }
 
 /** 매너평가 이유 태그(§9) — rating별 선택 가능 목록 */

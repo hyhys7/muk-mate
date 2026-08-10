@@ -58,6 +58,8 @@ export async function POST(request: Request) {
   const pickupLng = Number.isFinite(Number(body.pickupLng)) ? Number(body.pickupLng) : null
   const pickupNote = typeof body.pickupNote === 'string' ? body.pickupNote.trim() : ''
   const extraNote = typeof body.extraNote === 'string' ? body.extraNote.trim() : ''
+  // §5-4 분담 금액 계산용(P1, 선택 입력) — 방장 본인의 주문 금액. 안 주면 0으로 처리
+  const hostMenuAmount = Number.isFinite(Number(body.menuAmount)) ? Math.max(0, Number(body.menuAmount)) : 0
 
   if (!storeName || storeName.length > STORE_NAME_MAX) {
     return NextResponse.json({ error: '가게 이름을 확인해 주세요.' }, { status: 400 })
@@ -128,6 +130,7 @@ export async function POST(request: Request) {
   await db.insert(participations).values({
     potId: created.id,
     userId: me.id,
+    menuAmount: hostMenuAmount,
     approvalStatus: 'APPROVED',
   })
 

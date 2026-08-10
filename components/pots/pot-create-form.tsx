@@ -83,6 +83,7 @@ export function PotCreateForm() {
   const [targetType, setTargetType] = useState<TargetType>('HEADCOUNT')
   const [targetValue, setTargetValue] = useState<number>(4)
   const [deliveryFee, setDeliveryFee] = useState<number>(4000)
+  const [menuAmount, setMenuAmount] = useState<number>(0)
   const [deadlineMinutes, setDeadlineMinutes] = useState<number>(30)
   const [pickupMinutes, setPickupMinutes] = useState<number>(60)
   const [pickupNote, setPickupNote] = useState('')
@@ -129,6 +130,7 @@ export function PotCreateForm() {
         pickupLng: pickup.lng,
         pickupNote: pickupNote.trim(),
         extraNote: extraNote.trim(),
+        menuAmount,
       })
       router.push(`/pots/${created.id}`)
       router.refresh()
@@ -324,6 +326,24 @@ export function PotCreateForm() {
               />
               <span className="shrink-0 font-bold text-foreground">원</span>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-muted-foreground">
+              내(방장) 주문 금액 (선택, 원)
+            </label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                step={500}
+                min={0}
+                value={menuAmount}
+                onChange={(e) => setMenuAmount(Number(e.target.value))}
+                className="h-11 rounded-xl"
+              />
+              <span className="shrink-0 font-bold text-foreground">원</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">참여자별 분담 금액을 보여주는 데 쓰여요.</p>
           </div>
         </section>
 
