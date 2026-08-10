@@ -1033,11 +1033,16 @@ export async function getMannerReviewStatus(potId: string, viewerId: string): Pr
 
   const reviewedSet = new Set(existingReviews.map((r) => r.revieweeId))
 
-  const targets: MannerReviewTarget[] = candidates.map((c) => ({
-    userId: c.userId,
-    nickname: c.nickname,
-    alreadyReviewed: reviewedSet.has(c.userId),
-  }))
+  // §12-3: 평가 화면은 대상의 현재 매너 배지도 함께 보여준다 — 이미 공개 프로필(/users/:id)에서
+  // 누구나 볼 수 있는 정보라 평가 화면에 노출해도 §11(개별 평가 비공개) 원칙과 충돌하지 않는다.
+  const targets: MannerReviewTarget[] = await Promise.all(
+    candidates.map(async (c) => ({
+      userId: c.userId,
+      nickname: c.nickname,
+      alreadyReviewed: reviewedSet.has(c.userId),
+      manner: await getMannerProfile(c.userId),
+    })),
+  )
 
   return { eligible: true, targets }
 }

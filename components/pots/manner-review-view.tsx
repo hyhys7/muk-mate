@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { CheckCircle2 } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
+import { MannerBadge } from '@/components/manner-badge'
 import { StoreAvatar } from '@/components/store-avatar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -76,8 +77,17 @@ function ReviewCard({
     return (
       <Card className="flex items-center gap-3 p-4 opacity-70">
         <StoreAvatar name={target.nickname} className="size-9 text-sm" />
-        <p className="flex-1 text-sm font-semibold text-foreground">{target.nickname}</p>
-        <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <p className="text-sm font-semibold text-foreground">{target.nickname}</p>
+          <MannerBadge
+            stage={target.manner.stage}
+            score={target.manner.score}
+            reviewCount={target.manner.reviewCount}
+            avatarColor={target.manner.avatarColor}
+            avatarAccessory={target.manner.avatarAccessory}
+          />
+        </div>
+        <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
           <CheckCircle2 className="size-4" />
           평가 완료
         </span>
@@ -110,7 +120,16 @@ function ReviewCard({
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-center gap-3">
         <StoreAvatar name={target.nickname} className="size-9 text-sm" />
-        <p className="text-sm font-bold text-foreground">{target.nickname}</p>
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="text-sm font-bold text-foreground">{target.nickname}</p>
+          <MannerBadge
+            stage={target.manner.stage}
+            score={target.manner.score}
+            reviewCount={target.manner.reviewCount}
+            avatarColor={target.manner.avatarColor}
+            avatarAccessory={target.manner.avatarAccessory}
+          />
+        </div>
       </div>
 
       {error && <p className="text-xs font-semibold text-destructive">{error}</p>}

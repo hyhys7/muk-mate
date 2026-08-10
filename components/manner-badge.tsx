@@ -30,6 +30,9 @@ export function MannerBadge({
 }) {
   const meta = MANNER_STAGE_META[stage]
   const accessoryEmoji = avatarAccessory ? MANNER_AVATAR_ACCESSORY_META[avatarAccessory].emoji : ''
+  const label = score !== null ? `매너 포만도 ${Math.round(score)}점 · ${meta.label}` : meta.label
+  // §12-1: "평가 개수"는 호버 툴팁이 아니라 화면에 항상 보이는 텍스트여야 한다 — 모바일엔 호버가 없다.
+  const countSuffix = typeof reviewCount === 'number' ? ` · 평가 ${reviewCount}개` : ''
 
   return (
     <span
@@ -38,7 +41,6 @@ export function MannerBadge({
         STAGE_CLASS[stage],
         className,
       )}
-      title={typeof reviewCount === 'number' ? `평가 ${reviewCount}개 기준` : undefined}
     >
       {avatarColor && (
         <span
@@ -48,7 +50,8 @@ export function MannerBadge({
         />
       )}
       <span aria-hidden>{meta.emoji}</span>
-      {score !== null ? `매너 포만도 ${Math.round(score)}점 · ${meta.label}` : meta.label}
+      {label}
+      {countSuffix}
       {accessoryEmoji && <span aria-hidden>{accessoryEmoji}</span>}
     </span>
   )

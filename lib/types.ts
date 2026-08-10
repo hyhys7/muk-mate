@@ -174,6 +174,8 @@ export interface MannerReviewTarget {
   userId: string
   nickname: string
   alreadyReviewed: boolean
+  /** §12-3: 평가 화면은 대상의 현재 매너 배지(닉네임과 아바타)를 함께 보여준다 */
+  manner: MannerProfile
 }
 
 export interface MannerReviewStatus {
