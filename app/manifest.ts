@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: '먹메이트 · MukMate',
     short_name: '먹메이트',
     description: '전북대 학생용 공동주문 매칭 서비스 — 북대에서 같이 먹자!',
-    start_url: '/pots',
+    start_url: '/',
     display: 'standalone',
     orientation: 'portrait',
     background_color: '#f7f8f9',
