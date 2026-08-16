@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { createPot } from '@/lib/api'
 import { ZONES } from '@/lib/constants'
+import { formatWon } from '@/lib/format'
 import type { Place, TargetType, ZoneCode } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -81,7 +82,10 @@ export function PotCreateForm() {
   const [orderSummary, setOrderSummary] = useState('')
   const [zoneCode, setZoneCode] = useState<ZoneCode>('DORM')
   const [targetType, setTargetType] = useState<TargetType>('HEADCOUNT')
-  const [targetValue, setTargetValue] = useState<number>(4)
+  // 인원수/금액 모드는 각자 자기 값을 따로 기억한다 — 탭을 오갈 때 입력값이 날아가면 안 된다.
+  const [headcountValue, setHeadcountValue] = useState<number>(4)
+  const [amountValue, setAmountValue] = useState<number>(15000)
+  const targetValue = targetType === 'HEADCOUNT' ? headcountValue : amountValue
   const [deliveryFee, setDeliveryFee] = useState<number>(4000)
   const [menuAmount, setMenuAmount] = useState<number>(0)
   const [deadlineMinutes, setDeadlineMinutes] = useState<number>(30)
@@ -219,10 +223,7 @@ export function PotCreateForm() {
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setTargetType('HEADCOUNT')
-                  setTargetValue(4)
-                }}
+                onClick={() => setTargetType('HEADCOUNT')}
                 className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-sm font-semibold transition ${
                   targetType === 'HEADCOUNT'
                     ? 'border-primary bg-primary text-primary-foreground'
@@ -234,10 +235,7 @@ export function PotCreateForm() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setTargetType('AMOUNT')
-                  setTargetValue(15000)
-                }}
+                onClick={() => setTargetType('AMOUNT')}
                 className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-sm font-semibold transition ${
                   targetType === 'AMOUNT'
                     ? 'border-primary bg-primary text-primary-foreground'
@@ -259,7 +257,7 @@ export function PotCreateForm() {
                   min={2}
                   max={20}
                   value={targetValue}
-                  onChange={(e) => setTargetValue(Number(e.target.value))}
+                  onChange={(e) => setHeadcountValue(Number(e.target.value))}
                   className="h-11 rounded-xl"
                 />
                 <span className="shrink-0 font-bold text-foreground">명</span>
@@ -269,7 +267,7 @@ export function PotCreateForm() {
                   <button
                     key={num}
                     type="button"
-                    onClick={() => setTargetValue(num)}
+                    onClick={() => setHeadcountValue(num)}
                     className={`h-8 flex-1 rounded-lg border text-xs font-semibold ${
                       targetValue === num
                         ? 'border-primary bg-primary/10 text-primary'
@@ -290,7 +288,7 @@ export function PotCreateForm() {
                   step={1000}
                   min={1000}
                   value={targetValue}
-                  onChange={(e) => setTargetValue(Number(e.target.value))}
+                  onChange={(e) => setAmountValue(Number(e.target.value))}
                   className="h-11 rounded-xl"
                 />
                 <span className="shrink-0 font-bold text-foreground">원</span>
@@ -300,7 +298,7 @@ export function PotCreateForm() {
                   <button
                     key={amt}
                     type="button"
-                    onClick={() => setTargetValue(amt)}
+                    onClick={() => setAmountValue(amt)}
                     className={`h-8 flex-1 rounded-lg border text-xs font-semibold ${
                       targetValue === amt
                         ? 'border-primary bg-primary/10 text-primary'
@@ -326,6 +324,12 @@ export function PotCreateForm() {
               />
               <span className="shrink-0 font-bold text-foreground">원</span>
             </div>
+            {targetType === 'HEADCOUNT' && targetValue > 0 && deliveryFee > 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                목표 인원 {targetValue}명 기준 1인당 배달비 약{' '}
+                {formatWon(Math.ceil(deliveryFee / targetValue / 10) * 10)}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">
