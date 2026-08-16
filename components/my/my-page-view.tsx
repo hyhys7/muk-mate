@@ -13,6 +13,7 @@ import {
   MessageCircle,
   Plus,
   Search,
+  ShieldAlert,
   ShoppingBag,
   User,
   UserCheck,
@@ -35,7 +36,7 @@ import {
 import { MANNER_TAG_META, zoneLabel } from '@/lib/constants'
 import { formatDateTime, formatWon } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import type { MannerProfile, Participation, Pot, ZoneCode } from '@/lib/types'
+import type { MannerProfile, Participation, Pot, UserRole, ZoneCode } from '@/lib/types'
 
 export function MyPageView({
   me,
@@ -43,7 +44,7 @@ export function MyPageView({
   hostedPots,
   applications,
 }: {
-  me: { nickname: string; zoneCode: ZoneCode }
+  me: { nickname: string; zoneCode: ZoneCode; role: UserRole }
   manner: MannerProfile
   hostedPots: Pot[]
   applications: { participation: Participation; pot: Pot }[]
@@ -350,6 +351,19 @@ export function MyPageView({
       <div className="mt-2 flex flex-col gap-3 border-t border-border p-4">
         <h2 className="text-sm font-bold text-muted-foreground">계정 관리</h2>
         <div className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+          {me.role === 'ADMIN' && (
+            <Link
+              href="/admin"
+              className="flex h-12 items-center justify-between px-4 text-sm font-semibold text-primary transition hover:bg-primary-soft/50 active:bg-primary-soft"
+            >
+              <div className="flex items-center gap-2.5">
+                <ShieldAlert className="size-4 text-primary" />
+                <span>관리자 페이지</span>
+              </div>
+              <ChevronRight className="size-4 text-primary" />
+            </Link>
+          )}
+
           <Link
             href="/my/edit"
             className="flex h-12 items-center justify-between px-4 text-sm font-semibold text-foreground transition hover:bg-muted/50 active:bg-muted"
