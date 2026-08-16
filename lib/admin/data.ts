@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { count, desc, eq, inArray, sql } from 'drizzle-orm'
+import { count, desc, eq, gte, inArray, sql } from 'drizzle-orm'
 
 import { getDb } from '@/lib/db'
 import { pots, reports, users } from '@/lib/db/schema'
@@ -76,6 +76,15 @@ export interface AdminUserItem {
   role: UserRole
   accountStatus: AccountStatus
   createdAt: string
+  lastLoginAt: string | null
+}
+
+/** 표시는 항상 KST 기준(§9-3)이라 "오늘"의 경계도 KST 자정으로 계산 — 서버(UTC)의 달력일과 어긋나지 않게 */
+function kstTodayStartUtc(): Date {
+  const now = new Date()
+  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+  const kstMidnightAsUtcMs = Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate()) - 9 * 60 * 60 * 1000
+  return new Date(kstMidnightAsUtcMs)
 }
 
 /** 관리자 회원 목록 — 최신 가입순 */
@@ -91,6 +100,7 @@ export async function getUsersForAdmin(): Promise<AdminUserItem[]> {
       role: users.role,
       accountStatus: users.accountStatus,
       createdAt: users.createdAt,
+      lastLoginAt: users.lastLoginAt,
     })
     .from(users)
     .orderBy(desc(users.createdAt))
@@ -103,6 +113,7 @@ export async function getUsersForAdmin(): Promise<AdminUserItem[]> {
     role: r.role as UserRole,
     accountStatus: r.accountStatus as AccountStatus,
     createdAt: r.createdAt.toISOString(),
+    lastLoginAt: r.lastLoginAt?.toISOString() ?? null,
   }))
 }
 
@@ -112,20 +123,40 @@ export interface AdminDashboardStats {
   suspendedUsersCount: number
   totalPotsCount: number
   openPotsCount: number
+  todaySignupsCount: number
+  todayActiveUsersCount: number
 }
 
 /** 관리자 랜딩 대시보드용 요약 카운트 */
 export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
   const db = getDb()
+  const todayStart = kstTodayStartUtc()
 
-  const [[{ cnt: pendingReportsCount }], [{ cnt: totalUsersCount }], [{ cnt: suspendedUsersCount }], [{ cnt: totalPotsCount }], [{ cnt: openPotsCount }]] =
-    await Promise.all([
-      db.select({ cnt: count() }).from(reports).where(eq(reports.status, 'PENDING')),
-      db.select({ cnt: count() }).from(users),
-      db.select({ cnt: count() }).from(users).where(eq(users.accountStatus, 'SUSPENDED')),
-      db.select({ cnt: count() }).from(pots),
-      db.select({ cnt: count() }).from(pots).where(eq(pots.status, 'OPEN')),
-    ])
+  const [
+    [{ cnt: pendingReportsCount }],
+    [{ cnt: totalUsersCount }],
+    [{ cnt: suspendedUsersCount }],
+    [{ cnt: totalPotsCount }],
+    [{ cnt: openPotsCount }],
+    [{ cnt: todaySignupsCount }],
+    [{ cnt: todayActiveUsersCount }],
+  ] = await Promise.all([
+    db.select({ cnt: count() }).from(reports).where(eq(reports.status, 'PENDING')),
+    db.select({ cnt: count() }).from(users),
+    db.select({ cnt: count() }).from(users).where(eq(users.accountStatus, 'SUSPENDED')),
+    db.select({ cnt: count() }).from(pots),
+    db.select({ cnt: count() }).from(pots).where(eq(pots.status, 'OPEN')),
+    db.select({ cnt: count() }).from(users).where(gte(users.createdAt, todayStart)),
+    db.select({ cnt: count() }).from(users).where(gte(users.lastLoginAt, todayStart)),
+  ])
 
-  return { pendingReportsCount, totalUsersCount, suspendedUsersCount, totalPotsCount, openPotsCount }
+  return {
+    pendingReportsCount,
+    totalUsersCount,
+    suspendedUsersCount,
+    totalPotsCount,
+    openPotsCount,
+    todaySignupsCount,
+    todayActiveUsersCount,
+  }
 }

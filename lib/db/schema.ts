@@ -65,6 +65,7 @@ export const users = pgTable('users', {
   accountStatus: accountStatusEnum('account_status').notNull().default('ACTIVE'),
   role: userRoleEnum('role').notNull().default('USER'), // 관리자 권한 검증 전용 — 셀프서비스로 바꿀 수 없음(DB에서 직접 부여)
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  lastLoginAt: timestamp('last_login_at', { withTimezone: true }), // 로그인(Credentials authorize) 성공 시에만 갱신 — 페이지 방문마다 갱신되지 않음
 })
 
 export const pots = pgTable(

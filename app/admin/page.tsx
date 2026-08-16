@@ -31,6 +31,8 @@ export default async function AdminHomePage() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
       <div className="grid grid-cols-2 gap-3">
+        <StatTile label="오늘 가입한 회원" value={stats.todaySignupsCount} tone="primary" />
+        <StatTile label="오늘 접속한 회원" value={stats.todayActiveUsersCount} tone="primary" />
         <StatTile label="대기중인 신고" value={stats.pendingReportsCount} tone="destructive" />
         <StatTile label="정지된 회원" value={stats.suspendedUsersCount} tone="ordered" />
         <StatTile label="모집 중인 주문" value={stats.openPotsCount} tone="primary" />
