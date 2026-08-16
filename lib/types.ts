@@ -7,7 +7,7 @@ export type { ViewerState }
 export type PotStatus = 'OPEN' | 'CLOSED' | 'ORDERED' | 'CANCELED'
 export type Approval = 'PENDING' | 'APPROVED' | 'REJECTED'
 export type TargetType = 'HEADCOUNT' | 'AMOUNT'
-export type RoomType = 'ORDER' | 'COMMUNITY'
+export type RoomType = 'ORDER' | 'COMMUNITY' | 'DM'
 export type MessageType = 'TEXT' | 'SYSTEM'
 
 export type AccountStatus = 'ACTIVE' | 'SUSPENDED' | 'DISABLED'
@@ -155,6 +155,32 @@ export interface RoomAccess {
     pickupAt: string
     status: PotStatus
   }
+  /** DM일 때만 — 프로필 링크·신고 대상 지정용 */
+  dmOtherUser?: { id: string; nickname: string }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 친구
+// ─────────────────────────────────────────────────────────────
+
+export type FriendshipState = 'NONE' | 'FRIENDS' | 'REQUEST_SENT' | 'REQUEST_RECEIVED' | 'BLOCKED'
+
+export interface FriendSummary {
+  friendshipId: string
+  userId: string
+  nickname: string
+  manner?: MannerAvatarInfo
+  createdAt: string
+}
+
+export interface FriendRequestSummary extends FriendSummary {
+  direction: 'INCOMING' | 'OUTGOING'
+}
+
+export interface FriendsOverview {
+  friends: FriendSummary[]
+  incoming: FriendRequestSummary[]
+  outgoing: FriendRequestSummary[]
 }
 
 export interface Place {
@@ -209,6 +235,9 @@ export type NotificationType =
   | 'APPLICATION_REJECTED'
   | 'POT_COMPLETED'
   | 'POT_CANCELED'
+  | 'FRIEND_REQUEST'
+  | 'FRIEND_ACCEPTED'
+  | 'POT_INVITE'
 
 export interface AppNotification {
   id: number

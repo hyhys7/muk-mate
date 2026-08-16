@@ -21,7 +21,7 @@ import {
 
 export const potStatusEnum = pgEnum('pot_status', ['OPEN', 'CLOSED', 'ORDERED', 'CANCELED'])
 export const approvalEnum = pgEnum('approval', ['PENDING', 'APPROVED', 'REJECTED'])
-export const roomTypeEnum = pgEnum('room_type', ['ORDER', 'COMMUNITY'])
+export const roomTypeEnum = pgEnum('room_type', ['ORDER', 'COMMUNITY', 'DM'])
 export const messageTypeEnum = pgEnum('message_type', ['TEXT', 'SYSTEM'])
 export const targetTypeEnum = pgEnum('target_type', ['HEADCOUNT', 'AMOUNT'])
 export const accountStatusEnum = pgEnum('account_status', ['ACTIVE', 'SUSPENDED', 'DISABLED'])
@@ -44,8 +44,12 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   'APPLICATION_REJECTED',
   'POT_COMPLETED',
   'POT_CANCELED',
+  'FRIEND_REQUEST',
+  'FRIEND_ACCEPTED',
+  'POT_INVITE',
 ])
 export const mannerRatingEnum = pgEnum('manner_rating', ['GOOD', 'NEUTRAL', 'BAD'])
+export const friendStatusEnum = pgEnum('friend_status', ['PENDING', 'ACCEPTED'])
 
 /** 활동 지역: 목록이 아직 미확정(PRD §17-1)이라 enum이 아니라 테이블로 분리 */
 export const zones = pgTable('zones', {
@@ -136,15 +140,23 @@ export const participations = pgTable(
   ],
 )
 
-export const chatRooms = pgTable('chat_rooms', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  type: roomTypeEnum('type').notNull(),
-  potId: uuid('pot_id')
-    .unique()
-    .references(() => pots.id, { onDelete: 'cascade' }), // ORDER일 때만
-  title: text('title').notNull(), // COMMUNITY 고정방 이름
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const chatRooms = pgTable(
+  'chat_rooms',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    type: roomTypeEnum('type').notNull(),
+    potId: uuid('pot_id')
+      .unique()
+      .references(() => pots.id, { onDelete: 'cascade' }), // ORDER일 때만
+    title: text('title').notNull(), // COMMUNITY 고정방 이름, DM은 빈 문자열(닉네임은 조회 시점에 계산)
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    // DM일 때만 채움 — 항상 정렬된 쌍(uuid 문자열 기준 작은 쪽이 A)으로 저장해서 목록 조회 여부와 무관하게 유일성 보장.
+    // NULL 두 개는 서로 다르다고 취급하는 Postgres 유니크 인덱스 특성 덕분에 ORDER/COMMUNITY 행은 이 제약에 안 걸린다.
+    dmUserAId: uuid('dm_user_a_id').references(() => users.id),
+    dmUserBId: uuid('dm_user_b_id').references(() => users.id),
+  },
+  (table) => [uniqueIndex('chat_rooms_dm_pair_key').on(table.dmUserAId, table.dmUserBId)],
+)
 
 export const messages = pgTable(
   'messages',
@@ -292,6 +304,44 @@ export const mannerEvents = pgTable('manner_events', {
   delta: numeric('delta', { precision: 5, scale: 2 }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// 친구 관계 — requester가 addressee에게 신청, 수락되면 ACCEPTED(양방향으로 취급).
+// 거절/취소/친구끊기는 행을 그대로 지운다 — REJECTED를 영구 보존할 이유가 없다(다시 신청 가능해야 함).
+export const friendships = pgTable(
+  'friendships',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    requesterId: uuid('requester_id')
+      .notNull()
+      .references(() => users.id),
+    addresseeId: uuid('addressee_id')
+      .notNull()
+      .references(() => users.id),
+    status: friendStatusEnum('status').notNull().default('PENDING'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('friendships_pair_key').on(table.requesterId, table.addresseeId),
+    index('idx_friendships_addressee').on(table.addresseeId, table.status),
+  ],
+)
+
+// 차단 — 방향성 있음(내가 차단한 사람 목록). 친구 여부와 독립적이다.
+export const userBlocks = pgTable(
+  'user_blocks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    blockerId: uuid('blocker_id')
+      .notNull()
+      .references(() => users.id),
+    blockedId: uuid('blocked_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('user_blocks_pair_key').on(table.blockerId, table.blockedId)],
+)
 
 // re-export for callers that want a raw sql tag without importing drizzle-orm directly
 export { sql }

@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
@@ -9,6 +9,7 @@ import { REMEMBER_GUARD_COOKIE } from '@/lib/auth-constants'
 import { getDb, getPgErrorCode } from '@/lib/db'
 import {
   chatRooms,
+  friendships,
   mannerEvents,
   mannerProfiles,
   mannerReviews,
@@ -17,6 +18,7 @@ import {
   participations,
   pots,
   roomReads,
+  userBlocks,
   users,
 } from '@/lib/db/schema'
 import { DELETED_MESSAGE_PLACEHOLDER } from '@/lib/constants'
@@ -26,6 +28,10 @@ import { resolveViewerState } from '@/lib/pots/viewer-state'
 import type {
   AppNotification,
   ChatRoom,
+  FriendRequestSummary,
+  FriendshipState,
+  FriendsOverview,
+  FriendSummary,
   MannerAvatarAccessory,
   MannerAvatarColor,
   MannerAvatarInfo,
@@ -697,7 +703,24 @@ export async function listRoomsForUser(userId: string): Promise<ChatRoom[]> {
     .where(eq(chatRooms.type, 'COMMUNITY'))
     .orderBy(asc(chatRooms.createdAt))
 
-  const allRoomIds = [...orderRoomsRaw.map((r) => r.id), ...communityRoomsRaw.map((r) => r.id)]
+  const dmRoomsRaw = await db
+    .select({
+      id: chatRooms.id,
+      dmUserAId: chatRooms.dmUserAId,
+      dmUserBId: chatRooms.dmUserBId,
+      createdAt: chatRooms.createdAt,
+    })
+    .from(chatRooms)
+    .where(and(eq(chatRooms.type, 'DM'), or(eq(chatRooms.dmUserAId, userId), eq(chatRooms.dmUserBId, userId))))
+    .orderBy(desc(chatRooms.createdAt))
+
+  const otherUserIds = dmRoomsRaw.map((r) => (r.dmUserAId === userId ? r.dmUserBId! : r.dmUserAId!))
+  const otherUserRows = otherUserIds.length
+    ? await db.select({ id: users.id, nickname: users.nickname }).from(users).where(inArray(users.id, otherUserIds))
+    : []
+  const otherUserNickname = new Map(otherUserRows.map((u) => [u.id, u.nickname]))
+
+  const allRoomIds = [...orderRoomsRaw.map((r) => r.id), ...communityRoomsRaw.map((r) => r.id), ...dmRoomsRaw.map((r) => r.id)]
   const lastMessages = await getLastMessagesForRooms(allRoomIds)
   const unreadCounts = await getUnreadCountsForRooms(allRoomIds, userId)
 
@@ -729,7 +752,21 @@ export async function listRoomsForUser(userId: string): Promise<ChatRoom[]> {
     }
   })
 
-  return [...orderRooms, ...communityRooms]
+  const dmRooms: ChatRoom[] = dmRoomsRaw.map((r) => {
+    const otherId = r.dmUserAId === userId ? r.dmUserBId! : r.dmUserAId!
+    const last = lastMessages.get(r.id)
+    return {
+      id: r.id,
+      type: 'DM',
+      potId: null,
+      title: otherUserNickname.get(otherId) ?? '알 수 없음',
+      lastMessage: last?.content ?? '',
+      lastMessageAt: last?.createdAt.toISOString() ?? '',
+      unreadCount: unreadCounts.get(r.id) ?? 0,
+    }
+  })
+
+  return [...orderRooms, ...dmRooms, ...communityRooms]
 }
 
 /**
@@ -747,6 +784,21 @@ export async function getRoomForViewer(roomId: string, viewerId: string | undefi
 
   if (room.type === 'COMMUNITY') {
     return { id: room.id, type: 'COMMUNITY', title: room.title }
+  }
+
+  if (room.type === 'DM') {
+    if (!room.dmUserAId || !room.dmUserBId) return null
+    if (viewerId !== room.dmUserAId && viewerId !== room.dmUserBId) return null
+
+    const otherId = viewerId === room.dmUserAId ? room.dmUserBId : room.dmUserAId
+    // 둘 중 한쪽이 차단했으면 대화방을 계속 열어둘 이유가 없다 — 메시지 읽기/쓰기 둘 다 막는다.
+    const { state } = await getFriendshipState(viewerId, otherId)
+    if (state === 'BLOCKED') return null
+
+    const [other] = await db.select({ id: users.id, nickname: users.nickname }).from(users).where(eq(users.id, otherId)).limit(1)
+    if (!other) return null
+
+    return { id: room.id, type: 'DM', title: other.nickname, dmOtherUser: other }
   }
 
   if (!room.potId) return null
@@ -946,6 +998,254 @@ export async function getUnreadNotificationCount(userId: string): Promise<number
     .where(and(eq(notifications.recipientId, userId), eq(notifications.isRead, false)))
 
   return cnt
+}
+
+// ─────────────────────────────────────────────────────────────
+// 친구·차단·1:1 DM — 신규 기능. 친구끼리만 DM을 열 수 있고, 모집글 친구 초대도 여기서 재사용.
+// ─────────────────────────────────────────────────────────────
+
+/** 두 사용자 사이의 친구/차단 상태 — 요청 전송·DM 시작 전 항상 서버에서 재확인한다. */
+export async function getFriendshipState(
+  meId: string,
+  otherId: string,
+): Promise<{ state: FriendshipState; friendshipId?: string; blockedByMe?: boolean }> {
+  if (meId === otherId) return { state: 'NONE' }
+  const db = getDb()
+
+  const [blocked] = await db
+    .select({ blockerId: userBlocks.blockerId })
+    .from(userBlocks)
+    .where(
+      or(
+        and(eq(userBlocks.blockerId, meId), eq(userBlocks.blockedId, otherId)),
+        and(eq(userBlocks.blockerId, otherId), eq(userBlocks.blockedId, meId)),
+      ),
+    )
+    .limit(1)
+  if (blocked) return { state: 'BLOCKED', blockedByMe: blocked.blockerId === meId }
+
+  const [row] = await db
+    .select({ id: friendships.id, requesterId: friendships.requesterId, status: friendships.status })
+    .from(friendships)
+    .where(
+      or(
+        and(eq(friendships.requesterId, meId), eq(friendships.addresseeId, otherId)),
+        and(eq(friendships.requesterId, otherId), eq(friendships.addresseeId, meId)),
+      ),
+    )
+    .limit(1)
+
+  if (!row) return { state: 'NONE' }
+  if (row.status === 'ACCEPTED') return { state: 'FRIENDS', friendshipId: row.id }
+  return { state: row.requesterId === meId ? 'REQUEST_SENT' : 'REQUEST_RECEIVED', friendshipId: row.id }
+}
+
+export async function getFriendsOverview(userId: string): Promise<FriendsOverview> {
+  const db = getDb()
+
+  const rows = await db
+    .select({
+      id: friendships.id,
+      requesterId: friendships.requesterId,
+      addresseeId: friendships.addresseeId,
+      status: friendships.status,
+      createdAt: friendships.createdAt,
+    })
+    .from(friendships)
+    .where(or(eq(friendships.requesterId, userId), eq(friendships.addresseeId, userId)))
+
+  const otherIds = [...new Set(rows.map((r) => (r.requesterId === userId ? r.addresseeId : r.requesterId)))]
+  const [userRows, mannerMap] = await Promise.all([
+    otherIds.length
+      ? db.select({ id: users.id, nickname: users.nickname }).from(users).where(inArray(users.id, otherIds))
+      : Promise.resolve([]),
+    getMannerAvatarsForUsers(otherIds),
+  ])
+  const nicknameMap = new Map(userRows.map((u) => [u.id, u.nickname]))
+
+  const friends: FriendSummary[] = []
+  const incoming: FriendRequestSummary[] = []
+  const outgoing: FriendRequestSummary[] = []
+
+  for (const r of rows) {
+    const otherId = r.requesterId === userId ? r.addresseeId : r.requesterId
+    const base: FriendSummary = {
+      friendshipId: r.id,
+      userId: otherId,
+      nickname: nicknameMap.get(otherId) ?? '알 수 없음',
+      manner: mannerMap.get(otherId),
+      createdAt: r.createdAt.toISOString(),
+    }
+    if (r.status === 'ACCEPTED') {
+      friends.push(base)
+    } else if (r.requesterId === userId) {
+      outgoing.push({ ...base, direction: 'OUTGOING' })
+    } else {
+      incoming.push({ ...base, direction: 'INCOMING' })
+    }
+  }
+
+  return { friends, incoming, outgoing }
+}
+
+export async function sendFriendRequest(requesterId: string, addresseeId: string): Promise<void> {
+  if (requesterId === addresseeId) throw new Error('본인에게는 친구 요청을 보낼 수 없어요.')
+  const db = getDb()
+
+  const state = await getFriendshipState(requesterId, addresseeId)
+  if (state.state === 'BLOCKED') throw new Error('차단 관계라 친구 요청을 보낼 수 없어요.')
+  if (state.state !== 'NONE') throw new Error('이미 친구이거나 요청이 진행 중이에요.')
+
+  const [requester] = await db.select({ nickname: users.nickname }).from(users).where(eq(users.id, requesterId)).limit(1)
+  const [created] = await db.insert(friendships).values({ requesterId, addresseeId }).returning({ id: friendships.id })
+
+  await createNotificationBulk(db, [
+    {
+      recipientId: addresseeId,
+      type: 'FRIEND_REQUEST',
+      title: '친구 요청이 도착했어요',
+      body: `${requester?.nickname ?? '누군가'}님이 친구 요청을 보냈어요.`,
+      actionPath: `/my/friends`,
+      dedupeKey: `FRIEND_REQUEST:${created.id}`,
+    },
+  ])
+}
+
+export async function respondFriendRequest(
+  friendshipId: string,
+  addresseeId: string,
+  action: 'accept' | 'reject',
+): Promise<void> {
+  const db = getDb()
+  const [row] = await db.select().from(friendships).where(eq(friendships.id, friendshipId)).limit(1)
+  if (!row || row.addresseeId !== addresseeId || row.status !== 'PENDING') {
+    throw new Error('처리할 수 없는 요청이에요.')
+  }
+
+  if (action === 'reject') {
+    await db.delete(friendships).where(eq(friendships.id, friendshipId))
+    return
+  }
+
+  await db
+    .update(friendships)
+    .set({ status: 'ACCEPTED', respondedAt: new Date() })
+    .where(eq(friendships.id, friendshipId))
+
+  const [addressee] = await db.select({ nickname: users.nickname }).from(users).where(eq(users.id, addresseeId)).limit(1)
+  await createNotificationBulk(db, [
+    {
+      recipientId: row.requesterId,
+      type: 'FRIEND_ACCEPTED',
+      title: '친구 요청이 수락됐어요',
+      body: `${addressee?.nickname ?? '상대'}님과 친구가 됐어요.`,
+      actionPath: `/users/${addresseeId}`,
+      dedupeKey: `FRIEND_ACCEPTED:${friendshipId}`,
+    },
+  ])
+}
+
+/** 친구 삭제(수락된 관계 해제) 또는 보낸 요청 취소 — 관련 당사자만 지울 수 있다. */
+export async function removeFriendship(friendshipId: string, userId: string): Promise<void> {
+  const db = getDb()
+  const [row] = await db
+    .select({ requesterId: friendships.requesterId, addresseeId: friendships.addresseeId })
+    .from(friendships)
+    .where(eq(friendships.id, friendshipId))
+    .limit(1)
+  if (!row || (row.requesterId !== userId && row.addresseeId !== userId)) {
+    throw new Error('삭제할 수 없는 관계예요.')
+  }
+  await db.delete(friendships).where(eq(friendships.id, friendshipId))
+}
+
+/** 차단 — 기존 친구관계가 있었다면 함께 해제한다. */
+export async function blockUser(blockerId: string, blockedId: string): Promise<void> {
+  if (blockerId === blockedId) throw new Error('본인을 차단할 수 없어요.')
+  const db = getDb()
+
+  await db
+    .delete(friendships)
+    .where(
+      or(
+        and(eq(friendships.requesterId, blockerId), eq(friendships.addresseeId, blockedId)),
+        and(eq(friendships.requesterId, blockedId), eq(friendships.addresseeId, blockerId)),
+      ),
+    )
+  await db.insert(userBlocks).values({ blockerId, blockedId }).onConflictDoNothing()
+}
+
+export async function unblockUser(blockerId: string, blockedId: string): Promise<void> {
+  const db = getDb()
+  await db.delete(userBlocks).where(and(eq(userBlocks.blockerId, blockerId), eq(userBlocks.blockedId, blockedId)))
+}
+
+export async function getBlockedUsers(blockerId: string): Promise<{ userId: string; nickname: string }[]> {
+  const db = getDb()
+  const rows = await db
+    .select({ userId: userBlocks.blockedId, nickname: users.nickname })
+    .from(userBlocks)
+    .innerJoin(users, eq(userBlocks.blockedId, users.id))
+    .where(eq(userBlocks.blockerId, blockerId))
+    .orderBy(desc(userBlocks.createdAt))
+  return rows
+}
+
+function sortedPair(a: string, b: string): [string, string] {
+  return a < b ? [a, b] : [b, a]
+}
+
+/** 친구끼리만 DM 가능 — 기존 방이 있으면 재사용, 없으면 새로 만든다. */
+export async function getOrCreateDmRoom(userAId: string, userBId: string): Promise<string> {
+  const state = await getFriendshipState(userAId, userBId)
+  if (state.state !== 'FRIENDS') throw new Error('친구 사이에만 1:1 대화를 시작할 수 있어요.')
+
+  const db = getDb()
+  const [a, b] = sortedPair(userAId, userBId)
+
+  const [existing] = await db
+    .select({ id: chatRooms.id })
+    .from(chatRooms)
+    .where(and(eq(chatRooms.dmUserAId, a), eq(chatRooms.dmUserBId, b)))
+    .limit(1)
+  if (existing) return existing.id
+
+  const [created] = await db
+    .insert(chatRooms)
+    .values({ type: 'DM', title: '', dmUserAId: a, dmUserBId: b })
+    .returning({ id: chatRooms.id })
+  return created.id
+}
+
+/** 모집글에 친구를 초대 — 참여 승인을 대신하지 않는다, 그냥 링크를 보내 참여 신청을 유도한다. */
+export async function invitePotFriend(
+  potId: string,
+  hostId: string,
+  friendUserId: string,
+): Promise<void> {
+  const db = getDb()
+  const state = await getFriendshipState(hostId, friendUserId)
+  if (state.state !== 'FRIENDS') throw new Error('친구만 초대할 수 있어요.')
+
+  const [pot] = await db
+    .select({ storeName: pots.storeName, hostNickname: users.nickname })
+    .from(pots)
+    .innerJoin(users, eq(pots.hostId, users.id))
+    .where(eq(pots.id, potId))
+    .limit(1)
+  if (!pot) throw new Error('존재하지 않는 공동주문입니다.')
+
+  await createNotificationBulk(db, [
+    {
+      recipientId: friendUserId,
+      type: 'POT_INVITE',
+      potId,
+      title: '공동주문에 초대됐어요',
+      body: `${pot.hostNickname}님이 ${pot.storeName} 공동주문에 초대했어요.`,
+      actionPath: `/pots/${potId}`,
+      dedupeKey: `POT_INVITE:${potId}:${friendUserId}`,
+    },
+  ])
 }
 
 // ─────────────────────────────────────────────────────────────

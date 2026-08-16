@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronRight,
   ShoppingBag,
+  UserCheck,
   UserPlus,
   XCircle,
 } from 'lucide-react'
@@ -51,6 +52,12 @@ function getNotificationIcon(type: NotificationType) {
       return <ShoppingBag className="size-5 text-[#10B981]" />
     case 'POT_CANCELED':
       return <AlertCircle className="size-5 text-destructive" />
+    case 'FRIEND_REQUEST':
+      return <UserPlus className="size-5 text-primary" />
+    case 'FRIEND_ACCEPTED':
+      return <UserCheck className="size-5 text-[#10B981]" />
+    case 'POT_INVITE':
+      return <ShoppingBag className="size-5 text-primary" />
     default:
       return <CheckCircle2 className="size-5 text-primary" />
   }

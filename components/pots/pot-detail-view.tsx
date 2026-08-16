@@ -1,10 +1,25 @@
 'use client'
 
-import { ArrowLeft, Check, CheckCircle2, Clock, MapPin, Pencil, Share2, ShieldCheck, Smile, Trash2, Truck, Users } from 'lucide-react'
+import {
+  ArrowLeft,
+  Check,
+  CheckCircle2,
+  Clock,
+  MapPin,
+  Pencil,
+  Share2,
+  ShieldCheck,
+  Smile,
+  Trash2,
+  Truck,
+  UserPlus,
+  Users,
+} from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
+import { InviteFriendsDialog } from '@/components/pots/invite-friends-dialog'
 import { JoinButton } from '@/components/pots/join-button'
 import { JoinConfirmSheet } from '@/components/pots/join-confirm-sheet'
 import { PendingRequest, RequestList } from '@/components/pots/request-list'
@@ -64,6 +79,7 @@ export function PotDetailView({
   const [deleting, setDeleting] = useState(false)
   const [shared, setShared] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
 
   const deadline = formatDeadline(pot.deadlineAt)
   const isAmount = pot.targetType === 'AMOUNT'
@@ -386,11 +402,23 @@ export function PotDetailView({
 
       {/* 참여자 */}
       <section className="border-t border-border px-4 py-4">
-        <div className="flex items-center gap-1.5">
-          <Users className="size-4 text-muted-foreground" />
-          <h2 className="text-sm font-bold text-muted-foreground">
-            참여자 {approved.length}명
-          </h2>
+        <div className="flex items-center justify-between gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <Users className="size-4 text-muted-foreground" />
+            <h2 className="text-sm font-bold text-muted-foreground">
+              참여자 {approved.length}명
+            </h2>
+          </div>
+          {isHost && pot.status === 'OPEN' && (
+            <button
+              type="button"
+              onClick={() => setInviteOpen(true)}
+              className="flex items-center gap-1 text-xs font-semibold text-primary"
+            >
+              <UserPlus className="size-3.5" />
+              친구 초대
+            </button>
+          )}
         </div>
 
         <ul className="mt-3 flex flex-col gap-3">
@@ -501,6 +529,16 @@ export function PotDetailView({
         onClose={() => setShowConfirmSheet(false)}
         onSubmit={handleJoinSubmit}
       />
+
+      {/* 친구 초대 */}
+      {isHost && (
+        <InviteFriendsDialog
+          open={inviteOpen}
+          onOpenChange={setInviteOpen}
+          potId={pot.id}
+          excludeUserIds={participations.map((p) => p.userId)}
+        />
+      )}
     </div>
   )
 }

@@ -5,7 +5,7 @@ export default async function ChatPage() {
   const me = await getCurrentUser()
   const rooms = await listRoomsForUser(me.id)
 
-  const myRooms = rooms.filter((r) => r.type === 'ORDER')
+  const myRooms = rooms.filter((r) => r.type === 'ORDER' || r.type === 'DM')
   const communityRooms = rooms.filter((r) => r.type === 'COMMUNITY')
 
   return <ChatListView myRooms={myRooms} communityRooms={communityRooms} />

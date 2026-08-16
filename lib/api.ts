@@ -7,6 +7,7 @@
 // ─────────────────────────────────────────────────────────────
 import type {
   AppNotification,
+  FriendsOverview,
   MannerAvatarAccessory,
   MannerAvatarColor,
   MannerProfile,
@@ -354,6 +355,82 @@ export async function submitMannerReview(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
+  })
+  await parseJsonResponse<{ ok: true }>(res)
+}
+
+// ─────────────────────────────────────────────────────────────
+// 친구·차단·DM
+// ─────────────────────────────────────────────────────────────
+
+/** 내 친구 목록 + 받은/보낸 요청 — GET /api/friends */
+export async function getFriends(): Promise<FriendsOverview> {
+  const res = await fetch('/api/friends')
+  return parseJsonResponse<FriendsOverview>(res)
+}
+
+/** 친구 요청 보내기 — POST /api/friends */
+export async function sendFriendRequest(addresseeId: string): Promise<void> {
+  const res = await fetch('/api/friends', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ addresseeId }),
+  })
+  await parseJsonResponse<{ ok: true }>(res)
+}
+
+/** 받은 친구 요청 수락/거절 — PATCH /api/friends/:id */
+export async function respondFriendRequest(friendshipId: string, action: 'accept' | 'reject'): Promise<void> {
+  const res = await fetch(`/api/friends/${friendshipId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  })
+  await parseJsonResponse<{ ok: true }>(res)
+}
+
+/** 친구 삭제 또는 보낸 요청 취소 — DELETE /api/friends/:id */
+export async function removeFriendship(friendshipId: string): Promise<void> {
+  const res = await fetch(`/api/friends/${friendshipId}`, { method: 'DELETE' })
+  await parseJsonResponse<{ ok: true }>(res)
+}
+
+/** 회원 차단 — POST /api/blocks */
+export async function blockUser(userId: string): Promise<void> {
+  const res = await fetch('/api/blocks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId }),
+  })
+  await parseJsonResponse<{ ok: true }>(res)
+}
+
+/** 차단 해제 — DELETE /api/blocks/:userId */
+export async function unblockUser(userId: string): Promise<void> {
+  const res = await fetch(`/api/blocks/${userId}`, { method: 'DELETE' })
+  await parseJsonResponse<{ ok: true }>(res)
+}
+
+/** 차단한 회원 목록 — GET /api/blocks */
+export async function getBlockedUsers(): Promise<{ userId: string; nickname: string }[]> {
+  const res = await fetch('/api/blocks')
+  const data = await parseJsonResponse<{ items: { userId: string; nickname: string }[] }>(res)
+  return data.items
+}
+
+/** 친구와의 1:1 대화방 가져오기/생성 — POST /api/dm/:userId */
+export async function startDm(userId: string): Promise<string> {
+  const res = await fetch(`/api/dm/${userId}`, { method: 'POST' })
+  const data = await parseJsonResponse<{ roomId: string }>(res)
+  return data.roomId
+}
+
+/** 모집글에 친구 초대 — POST /api/pots/:id/invite, 방장 전용 */
+export async function invitePotFriend(potId: string, friendUserId: string): Promise<void> {
+  const res = await fetch(`/api/pots/${potId}/invite`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ friendUserId }),
   })
   await parseJsonResponse<{ ok: true }>(res)
 }

@@ -365,6 +365,17 @@ export function MyPageView({
           )}
 
           <Link
+            href="/my/friends"
+            className="flex h-12 items-center justify-between px-4 text-sm font-semibold text-foreground transition hover:bg-muted/50 active:bg-muted"
+          >
+            <div className="flex items-center gap-2.5">
+              <Users className="size-4 text-muted-foreground" />
+              <span>친구</span>
+            </div>
+            <ChevronRight className="size-4 text-muted-foreground" />
+          </Link>
+
+          <Link
             href="/my/edit"
             className="flex h-12 items-center justify-between px-4 text-sm font-semibold text-foreground transition hover:bg-muted/50 active:bg-muted"
           >

@@ -221,7 +221,12 @@ export function ChatRoomView({
   // 사용자 신고 열기 (더보기 메뉴에서)
   function openReportUser() {
     setMoreMenuOpen(false)
-    // 주최자 또는 상대방 닉네임 설정
+    // DM은 상대방이 고정이라 room에서 바로 알 수 있다 — ORDER/COMMUNITY는 최근 메시지 발신자로 추정.
+    if (room.type === 'DM' && room.dmOtherUser) {
+      setReportTarget({ nickname: room.dmOtherUser.nickname, userId: room.dmOtherUser.id })
+      setReportModalOpen(true)
+      return
+    }
     const otherMsg = messages.find((m) => !m.isMine && m.senderId)
     setReportTarget({
       nickname: otherMsg?.senderNickname || '참여자',
