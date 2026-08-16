@@ -1,10 +1,11 @@
 import 'server-only'
 
-import { count, desc, eq, gte, inArray, sql } from 'drizzle-orm'
+import { count, desc, eq, inArray, sql } from 'drizzle-orm'
 
 import { getDb } from '@/lib/db'
 import { pots, reports, users } from '@/lib/db/schema'
-import type { AccountStatus, ReportReason, ReportStatus, UserRole, ZoneCode } from '@/lib/types'
+import { listPots } from '@/lib/server-data'
+import type { AccountStatus, Pot, ReportReason, ReportStatus, UserRole, ZoneCode } from '@/lib/types'
 
 export interface AdminReportItem {
   id: string
@@ -127,36 +128,57 @@ export interface AdminDashboardStats {
   todayActiveUsersCount: number
 }
 
-/** 관리자 랜딩 대시보드용 요약 카운트 */
-export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
-  const db = getDb()
+export interface AdminDashboardData {
+  stats: AdminDashboardStats
+  /** 오늘(KST) 가입한 회원 — 최신순 */
+  todaySignups: AdminUserItem[]
+  /** 오늘(KST) 로그인한 회원 — 최근 접속순 */
+  todayActiveUsers: AdminUserItem[]
+  /** 처리 대기중인 신고 */
+  pendingReports: AdminReportItem[]
+  /** 정지된 회원 */
+  suspendedUsers: AdminUserItem[]
+  /** 모집 중(OPEN, 마감시각 지나지 않음)인 모집글 — 조회 시점 판정(§10-3③) 반영 */
+  openPots: Pot[]
+  /** 전체 회원 — 최신 가입순 */
+  allUsers: AdminUserItem[]
+}
+
+/** 관리자 랜딩 대시보드 — 요약 카운트 + 각 카운트를 누르면 보여줄 상세 목록.
+ *  이미 화면(회원관리/신고함/모집글관리)에 쓰는 조회 함수를 그대로 재사용해서,
+ *  대시보드 숫자와 상세 목록이 항상 같은 기준(특히 모집글의 마감시각 조회 시점 판정)으로 일치하게 한다. */
+export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   const todayStart = kstTodayStartUtc()
 
-  const [
-    [{ cnt: pendingReportsCount }],
-    [{ cnt: totalUsersCount }],
-    [{ cnt: suspendedUsersCount }],
-    [{ cnt: totalPotsCount }],
-    [{ cnt: openPotsCount }],
-    [{ cnt: todaySignupsCount }],
-    [{ cnt: todayActiveUsersCount }],
-  ] = await Promise.all([
-    db.select({ cnt: count() }).from(reports).where(eq(reports.status, 'PENDING')),
-    db.select({ cnt: count() }).from(users),
-    db.select({ cnt: count() }).from(users).where(eq(users.accountStatus, 'SUSPENDED')),
-    db.select({ cnt: count() }).from(pots),
-    db.select({ cnt: count() }).from(pots).where(eq(pots.status, 'OPEN')),
-    db.select({ cnt: count() }).from(users).where(gte(users.createdAt, todayStart)),
-    db.select({ cnt: count() }).from(users).where(gte(users.lastLoginAt, todayStart)),
+  const [allUsers, allReports, openPots, [{ cnt: totalPotsCount }]] = await Promise.all([
+    getUsersForAdmin(),
+    getReportsForAdmin(),
+    listPots({ status: 'OPEN' }),
+    getDb().select({ cnt: count() }).from(pots),
   ])
 
+  const todaySignups = allUsers.filter((u) => new Date(u.createdAt) >= todayStart)
+  const todayActiveUsers = allUsers
+    .filter((u) => u.lastLoginAt && new Date(u.lastLoginAt) >= todayStart)
+    .sort((a, b) => new Date(b.lastLoginAt!).getTime() - new Date(a.lastLoginAt!).getTime())
+  const pendingReports = allReports.filter((r) => r.status === 'PENDING')
+  const suspendedUsers = allUsers.filter((u) => u.accountStatus === 'SUSPENDED')
+
   return {
-    pendingReportsCount,
-    totalUsersCount,
-    suspendedUsersCount,
-    totalPotsCount,
-    openPotsCount,
-    todaySignupsCount,
-    todayActiveUsersCount,
+    stats: {
+      pendingReportsCount: pendingReports.length,
+      totalUsersCount: allUsers.length,
+      suspendedUsersCount: suspendedUsers.length,
+      totalPotsCount,
+      openPotsCount: openPots.length,
+      todaySignupsCount: todaySignups.length,
+      todayActiveUsersCount: todayActiveUsers.length,
+    },
+    todaySignups,
+    todayActiveUsers,
+    pendingReports,
+    suspendedUsers,
+    openPots,
+    allUsers,
   }
 }
