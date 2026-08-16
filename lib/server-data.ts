@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { and, asc, count, desc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
@@ -19,6 +19,7 @@ import {
   roomReads,
   users,
 } from '@/lib/db/schema'
+import { DELETED_MESSAGE_PLACEHOLDER } from '@/lib/constants'
 import { formatDateTime } from '@/lib/format'
 import { createNotificationBulk } from '@/lib/notifications'
 import { resolveViewerState } from '@/lib/pots/viewer-state'
@@ -558,12 +559,12 @@ async function getLastMessagesForRooms(roomIds: string[]) {
   const result = new Map<string, { content: string; createdAt: Date }>()
   for (const roomId of roomIds) {
     const [last] = await db
-      .select({ content: messages.content, createdAt: messages.createdAt })
+      .select({ content: messages.content, createdAt: messages.createdAt, deletedAt: messages.deletedAt })
       .from(messages)
       .where(eq(messages.roomId, roomId))
       .orderBy(desc(messages.id))
       .limit(1)
-    if (last) result.set(roomId, last)
+    if (last) result.set(roomId, { content: last.deletedAt ? DELETED_MESSAGE_PLACEHOLDER : last.content, createdAt: last.createdAt })
   }
   return result
 }
@@ -723,6 +724,7 @@ export async function getMessagesForRoom(
       type: messages.type,
       content: messages.content,
       createdAt: messages.createdAt,
+      deletedAt: messages.deletedAt,
     })
     .from(messages)
     .leftJoin(users, eq(messages.senderId, users.id))
@@ -739,11 +741,22 @@ export async function getMessagesForRoom(
     senderId: r.senderId ?? '',
     senderNickname: r.senderNickname ?? '',
     type: r.type,
-    content: r.content,
+    content: r.deletedAt ? DELETED_MESSAGE_PLACEHOLDER : r.content,
     createdAt: r.createdAt.toISOString(),
     isMine: r.senderId === viewerId,
     manner: r.senderId ? mannerMap.get(r.senderId) : undefined,
+    deleted: r.deletedAt !== null,
   }))
+}
+
+/** 최근 삭제된(전체 삭제) 메시지 id — 이미 화면에 떠 있는 상대방 메시지도 다음 폴링에 반영되게 한다. */
+export async function getRecentlyDeletedMessageIds(roomId: string, since: Date): Promise<string[]> {
+  const db = getDb()
+  const rows = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.roomId, roomId), isNotNull(messages.deletedAt), gt(messages.deletedAt, since)))
+  return rows.map((r) => String(r.id))
 }
 
 /**

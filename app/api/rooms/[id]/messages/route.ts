@@ -3,7 +3,14 @@ import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db'
 import { messages, users } from '@/lib/db/schema'
-import { getMessagesForRoom, getRoomForViewer, getRoomReads, getSessionUserOrNull, markRoomRead } from '@/lib/server-data'
+import {
+  getMessagesForRoom,
+  getRecentlyDeletedMessageIds,
+  getRoomForViewer,
+  getRoomReads,
+  getSessionUserOrNull,
+  markRoomRead,
+} from '@/lib/server-data'
 
 const CONTENT_MAX = 500
 
@@ -19,8 +26,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: '접근 권한이 없습니다.' }, { status: 403 })
   }
 
-  const afterRaw = new URL(request.url).searchParams.get('after')
+  const searchParams = new URL(request.url).searchParams
+  const afterRaw = searchParams.get('after')
   const after = Number(afterRaw ?? '0')
+  const deletedSinceRaw = searchParams.get('deletedSince')
+  const deletedSince = deletedSinceRaw ? new Date(deletedSinceRaw) : null
 
   const list = await getMessagesForRoom(id, Number.isFinite(after) ? after : 0, me.id)
 
@@ -33,7 +43,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     reads = await getRoomReads(id, access.pot.id)
   }
 
-  return NextResponse.json({ messages: list, reads })
+  // 이미 화면에 떠 있는(after 커서보다 앞선) 메시지가 방금 삭제됐을 수도 있다 — 폴링마다 같이 확인한다.
+  const deletedCheckedAt = new Date()
+  const deletedMessageIds =
+    deletedSince && !Number.isNaN(deletedSince.getTime())
+      ? await getRecentlyDeletedMessageIds(id, deletedSince)
+      : []
+
+  return NextResponse.json({ messages: list, reads, deletedMessageIds, deletedCheckedAt: deletedCheckedAt.toISOString() })
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -89,6 +106,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         content: created.content,
         createdAt: created.createdAt.toISOString(),
         isMine: true,
+        deleted: false,
       },
     },
     { status: 201 },

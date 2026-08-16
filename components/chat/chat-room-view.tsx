@@ -16,6 +16,7 @@ import {
   Send,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react'
 
 import { ReportModal } from '@/components/chat/report-modal'
@@ -29,7 +30,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
-import { getMessages, sendMessage } from '@/lib/api'
+import { deleteMessage, getMessages, sendMessage } from '@/lib/api'
+import { DELETED_MESSAGE_PLACEHOLDER } from '@/lib/constants'
 import { formatClock, formatDateDivider, formatDateTime, isSameDay } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { Message, RoomAccess, RoomReadEntry } from '@/lib/types'
@@ -84,6 +86,7 @@ export function ChatRoomView({
   const lastIdRef = useRef<number>(
     initialMessages.length > 0 ? Number(initialMessages[initialMessages.length - 1].id) : 0,
   )
+  const deletedSinceRef = useRef<string>(new Date().toISOString())
 
   // 스크롤 위치 감지
   function handleScroll() {
@@ -107,8 +110,24 @@ export function ChatRoomView({
     const interval = setInterval(async () => {
       if (document.hidden) return
       try {
-        const { messages: fresh, reads: freshReads } = await getMessages(room.id, lastIdRef.current)
+        const {
+          messages: fresh,
+          reads: freshReads,
+          deletedMessageIds,
+          deletedCheckedAt,
+        } = await getMessages(room.id, lastIdRef.current, deletedSinceRef.current)
         setReads(freshReads)
+        deletedSinceRef.current = deletedCheckedAt
+
+        // 이미 화면에 떠 있던(다른 사람이 보낸) 메시지가 방금 삭제됐으면 반영한다.
+        if (deletedMessageIds.length > 0) {
+          const deletedIdSet = new Set(deletedMessageIds)
+          setMessages((prev) =>
+            prev.map((m) =>
+              deletedIdSet.has(m.id) ? { ...m, deleted: true, content: DELETED_MESSAGE_PLACEHOLDER } : m,
+            ),
+          )
+        }
 
         if (fresh.length === 0) return
 
@@ -168,6 +187,23 @@ export function ChatRoomView({
       setError(err instanceof Error ? err.message : '메시지 전송에 실패했어요.')
     } finally {
       setSending(false)
+    }
+  }
+
+  // 내 메시지 삭제 (카카오톡식 전체 삭제 — 상대방 화면에서도 "삭제된 메시지예요"로 바뀐다)
+  async function handleDelete(msg: Message) {
+    if (!msg.isMine || msg.deleted) return
+    if (!confirm('메시지를 삭제하시겠어요? 모든 참여자의 화면에서 사라져요.')) return
+
+    // 낙관적 업데이트 — 실패하면 되돌린다.
+    setMessages((prev) =>
+      prev.map((m) => (m.id === msg.id ? { ...m, deleted: true, content: DELETED_MESSAGE_PLACEHOLDER } : m)),
+    )
+    try {
+      await deleteMessage(room.id, msg.id)
+    } catch {
+      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev.map((m) => (m.id === msg.id ? msg : m)) : prev))
+      alert('메시지 삭제에 실패했어요. 다시 시도해 주세요.')
     }
   }
 
@@ -354,9 +390,11 @@ export function ChatRoomView({
                     <div
                       className={cn(
                         'max-w-64 rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap',
-                        m.isMine
-                          ? 'rounded-br-sm bg-primary text-primary-foreground'
-                          : 'rounded-bl-sm bg-muted text-foreground',
+                        m.deleted
+                          ? 'border border-dashed border-border bg-transparent italic text-muted-foreground'
+                          : m.isMine
+                            ? 'rounded-br-sm bg-primary text-primary-foreground'
+                            : 'rounded-bl-sm bg-muted text-foreground',
                       )}
                     >
                       {m.content}
@@ -368,8 +406,20 @@ export function ChatRoomView({
                       <span className="text-[11px] leading-none text-muted-foreground">{formatClock(m.createdAt)}</span>
                     </div>
 
+                    {/* 내 메시지 삭제 버튼 */}
+                    {m.isMine && !m.deleted && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(m)}
+                        title="메시지 삭제"
+                        className="opacity-0 group-hover:opacity-100 transition p-1 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    )}
+
                     {/* 타인 메시지 신고 버튼 (§7-1) */}
-                    {!m.isMine && (
+                    {!m.isMine && !m.deleted && (
                       <button
                         type="button"
                         onClick={() => openReportMessage(m)}

@@ -178,13 +178,27 @@ export async function withdrawAccount(currentPassword: string): Promise<void> {
   await parseJsonResponse<{ ok: true }>(res)
 }
 
-/** 채팅 메시지 증분 조회(폴링) — GET /api/rooms/:id/messages?after= */
+/** 채팅 메시지 증분 조회(폴링) — GET /api/rooms/:id/messages?after=&deletedSince= */
 export async function getMessages(
   roomId: string,
   afterId = 0,
-): Promise<{ messages: Message[]; reads: RoomReadEntry[] }> {
-  const res = await fetch(`/api/rooms/${roomId}/messages?after=${afterId}`)
-  return parseJsonResponse<{ messages: Message[]; reads: RoomReadEntry[] }>(res)
+  deletedSince?: string,
+): Promise<{ messages: Message[]; reads: RoomReadEntry[]; deletedMessageIds: string[]; deletedCheckedAt: string }> {
+  const qs = new URLSearchParams({ after: String(afterId) })
+  if (deletedSince) qs.set('deletedSince', deletedSince)
+  const res = await fetch(`/api/rooms/${roomId}/messages?${qs.toString()}`)
+  return parseJsonResponse<{
+    messages: Message[]
+    reads: RoomReadEntry[]
+    deletedMessageIds: string[]
+    deletedCheckedAt: string
+  }>(res)
+}
+
+/** 메시지 삭제(카카오톡식 전체 삭제, 보낸 사람 본인만) — DELETE /api/rooms/:id/messages/:messageId */
+export async function deleteMessage(roomId: string, messageId: string): Promise<void> {
+  const res = await fetch(`/api/rooms/${roomId}/messages/${messageId}`, { method: 'DELETE' })
+  await parseJsonResponse<{ ok: true }>(res)
 }
 
 /** 메시지 전송 — POST /api/rooms/:id/messages */

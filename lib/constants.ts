@@ -12,6 +12,9 @@ import type {
 /** signup(1단계) → onboarding(2단계) 사이에 임시로 들고 다니는 가입 정보의 sessionStorage 키 */
 export const SIGNUP_DRAFT_KEY = 'mukmate:signup-draft'
 
+/** 카카오톡식 메시지 전체 삭제 시 표시하는 문구 — 서버(마스킹)와 클라이언트(낙관적 업데이트) 둘 다 이 값을 쓴다 */
+export const DELETED_MESSAGE_PLACEHOLDER = '삭제된 메시지예요'
+
 /** 활동 지역(권역) 고정값 */
 export const ZONES: Zone[] = [
   { code: 'GUJEONGMUN', label: '구정문 권역' },

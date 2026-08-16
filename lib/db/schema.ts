@@ -155,6 +155,9 @@ export const messages = pgTable(
     type: messageTypeEnum('type').notNull().default('TEXT'),
     content: text('content').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    // 카카오톡식 "삭제된 메시지예요" — content는 지우지 않고 보존(신고 스냅샷과 별개로 조정용),
+    // 읽기 경로(getMessagesForRoom)에서 항상 마스킹해서 내려준다.
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (table) => [index('idx_messages_room').on(table.roomId, table.id)],
 )
