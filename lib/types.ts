@@ -183,6 +183,17 @@ export interface FriendsOverview {
   outgoing: FriendRequestSummary[]
 }
 
+// ─────────────────────────────────────────────────────────────
+// 마이페이지 환경설정
+// ─────────────────────────────────────────────────────────────
+
+export interface UserPreferences {
+  notifyFriendRequest: boolean
+  notifyPotInvite: boolean
+  /** 저장만 하고 실제 번역은 아직 미구현 — UI에서 비활성 표시 */
+  language: string
+}
+
 export interface Place {
   id: string
   name: string

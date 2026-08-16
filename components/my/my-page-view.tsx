@@ -7,15 +7,14 @@ import {
   ChevronRight,
   Clock,
   FileText,
-  Lock,
   LogOut,
   MapPin,
   MessageCircle,
   Plus,
   Search,
+  Settings,
   ShieldAlert,
   ShoppingBag,
-  User,
   UserCheck,
   Users,
 } from 'lucide-react'
@@ -376,23 +375,12 @@ export function MyPageView({
           </Link>
 
           <Link
-            href="/my/edit"
+            href="/my/settings"
             className="flex h-12 items-center justify-between px-4 text-sm font-semibold text-foreground transition hover:bg-muted/50 active:bg-muted"
           >
             <div className="flex items-center gap-2.5">
-              <User className="size-4 text-muted-foreground" />
-              <span>기본정보 수정</span>
-            </div>
-            <ChevronRight className="size-4 text-muted-foreground" />
-          </Link>
-
-          <Link
-            href="/my/edit"
-            className="flex h-12 items-center justify-between px-4 text-sm font-semibold text-foreground transition hover:bg-muted/50 active:bg-muted"
-          >
-            <div className="flex items-center gap-2.5">
-              <Lock className="size-4 text-muted-foreground" />
-              <span>비밀번호 변경</span>
+              <Settings className="size-4 text-muted-foreground" />
+              <span>환경설정</span>
             </div>
             <ChevronRight className="size-4 text-muted-foreground" />
           </Link>

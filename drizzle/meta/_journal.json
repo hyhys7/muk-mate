@@ -78,6 +78,13 @@
       "when": 1786865601210,
       "tag": "0010_icy_scourge",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786867001981,
+      "tag": "0011_flaky_klaw",
+      "breakpoints": true
     }
   ]
 }

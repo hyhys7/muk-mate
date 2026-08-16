@@ -19,6 +19,7 @@ import {
   pots,
   roomReads,
   userBlocks,
+  userPreferences,
   users,
 } from '@/lib/db/schema'
 import { DELETED_MESSAGE_PLACEHOLDER } from '@/lib/constants'
@@ -47,6 +48,7 @@ import type {
   RoomAccess,
   RoomReadEntry,
   User,
+  UserPreferences,
   ZoneCode,
 } from '@/lib/types'
 
@@ -1088,6 +1090,43 @@ export async function getFriendsOverview(userId: string): Promise<FriendsOvervie
   return { friends, incoming, outgoing }
 }
 
+const DEFAULT_PREFERENCES: UserPreferences = {
+  notifyFriendRequest: true,
+  notifyPotInvite: true,
+  language: 'ko',
+}
+
+/** 없으면(한 번도 설정을 안 바꾼 사용자) 기본값 — 행을 미리 만들어두지 않는다. */
+export async function getUserPreferences(userId: string): Promise<UserPreferences> {
+  const db = getDb()
+  const [row] = await db
+    .select({
+      notifyFriendRequest: userPreferences.notifyFriendRequest,
+      notifyPotInvite: userPreferences.notifyPotInvite,
+      language: userPreferences.language,
+    })
+    .from(userPreferences)
+    .where(eq(userPreferences.userId, userId))
+    .limit(1)
+  return row ?? DEFAULT_PREFERENCES
+}
+
+export async function updateUserPreferences(userId: string, patch: Partial<UserPreferences>): Promise<UserPreferences> {
+  const db = getDb()
+  const current = await getUserPreferences(userId)
+  const next = { ...current, ...patch }
+
+  await db
+    .insert(userPreferences)
+    .values({ userId, ...next, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: userPreferences.userId,
+      set: { ...next, updatedAt: new Date() },
+    })
+
+  return next
+}
+
 export async function sendFriendRequest(requesterId: string, addresseeId: string): Promise<void> {
   if (requesterId === addresseeId) throw new Error('본인에게는 친구 요청을 보낼 수 없어요.')
   const db = getDb()
@@ -1099,16 +1138,19 @@ export async function sendFriendRequest(requesterId: string, addresseeId: string
   const [requester] = await db.select({ nickname: users.nickname }).from(users).where(eq(users.id, requesterId)).limit(1)
   const [created] = await db.insert(friendships).values({ requesterId, addresseeId }).returning({ id: friendships.id })
 
-  await createNotificationBulk(db, [
-    {
-      recipientId: addresseeId,
-      type: 'FRIEND_REQUEST',
-      title: '친구 요청이 도착했어요',
-      body: `${requester?.nickname ?? '누군가'}님이 친구 요청을 보냈어요.`,
-      actionPath: `/my/friends`,
-      dedupeKey: `FRIEND_REQUEST:${created.id}`,
-    },
-  ])
+  const recipientPrefs = await getUserPreferences(addresseeId)
+  if (recipientPrefs.notifyFriendRequest) {
+    await createNotificationBulk(db, [
+      {
+        recipientId: addresseeId,
+        type: 'FRIEND_REQUEST',
+        title: '친구 요청이 도착했어요',
+        body: `${requester?.nickname ?? '누군가'}님이 친구 요청을 보냈어요.`,
+        actionPath: `/my/friends`,
+        dedupeKey: `FRIEND_REQUEST:${created.id}`,
+      },
+    ])
+  }
 }
 
 export async function respondFriendRequest(
@@ -1234,6 +1276,9 @@ export async function invitePotFriend(
     .where(eq(pots.id, potId))
     .limit(1)
   if (!pot) throw new Error('존재하지 않는 공동주문입니다.')
+
+  const recipientPrefs = await getUserPreferences(friendUserId)
+  if (!recipientPrefs.notifyPotInvite) return
 
   await createNotificationBulk(db, [
     {

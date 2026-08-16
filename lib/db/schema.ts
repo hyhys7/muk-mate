@@ -343,5 +343,21 @@ export const userBlocks = pgTable(
   (table) => [uniqueIndex('user_blocks_pair_key').on(table.blockerId, table.blockedId)],
 )
 
+// 마이페이지 환경설정(v2.17) — 기능이 늘면서 계정 관리 목록이 지저분해져 새로 만든 설정 묶음.
+// 알림 토글은 핵심 주문 흐름(APPLICATION_*/POT_COMPLETED/POT_CANCELED) 알림은 대상이 아니고,
+// 새로 추가된 부가 기능(친구 요청/모집글 초대) 알림만 끌 수 있게 한다 — 주문 조율에 필요한
+// 알림까지 꺼버리면 PRD §18 우선순위(참여자 관리·상태 확인)와 부딪힌다.
+// language는 "영어 번역은 스케일이 커서 설정 자리만 먼저 만든다"는 결정에 따라 저장만 하고
+// 실제 번역 적용은 아직 없음(UI에서 비활성 표시).
+export const userPreferences = pgTable('user_preferences', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  notifyFriendRequest: boolean('notify_friend_request').notNull().default(true),
+  notifyPotInvite: boolean('notify_pot_invite').notNull().default(true),
+  language: text('language').notNull().default('ko'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 // re-export for callers that want a raw sql tag without importing drizzle-orm directly
 export { sql }

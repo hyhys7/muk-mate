@@ -19,6 +19,7 @@ import type {
   Pot,
   PotStatus,
   RoomReadEntry,
+  UserPreferences,
   ZoneCode,
 } from '@/lib/types'
 
@@ -433,4 +434,26 @@ export async function invitePotFriend(potId: string, friendUserId: string): Prom
     body: JSON.stringify({ friendUserId }),
   })
   await parseJsonResponse<{ ok: true }>(res)
+}
+
+// ─────────────────────────────────────────────────────────────
+// 마이페이지 환경설정
+// ─────────────────────────────────────────────────────────────
+
+/** 내 환경설정 — GET /api/me/preferences */
+export async function getPreferences(): Promise<UserPreferences> {
+  const res = await fetch('/api/me/preferences')
+  const data = await parseJsonResponse<{ preferences: UserPreferences }>(res)
+  return data.preferences
+}
+
+/** 환경설정 변경(부분) — PATCH /api/me/preferences */
+export async function updatePreferences(patch: Partial<UserPreferences>): Promise<UserPreferences> {
+  const res = await fetch('/api/me/preferences', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  const data = await parseJsonResponse<{ preferences: UserPreferences }>(res)
+  return data.preferences
 }
