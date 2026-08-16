@@ -85,6 +85,13 @@
       "when": 1786867001981,
       "tag": "0011_flaky_klaw",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786868018042,
+      "tag": "0012_next_black_panther",
+      "breakpoints": true
     }
   ]
 }

@@ -3,18 +3,33 @@
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { signOut, useSession } from 'next-auth/react'
-import { MapPin } from 'lucide-react'
+import { Check, MapPin } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
+import { EmailCodeVerifier } from '@/components/auth/email-code-verifier'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ZONES } from '@/lib/constants'
+import { changeLoginId } from '@/lib/auth-client'
 import { changePassword, updateProfile, withdrawAccount } from '@/lib/api'
 import type { ZoneCode } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-export function EditProfileView({ me }: { me: { nickname: string; zoneCode: ZoneCode } }) {
+export function EditProfileView({
+  me,
+  maskedEmail,
+}: {
+  me: { nickname: string; zoneCode: ZoneCode; loginId: string }
+  /** 등록된 이메일이 있어야 아이디 변경을 쓸 수 있다 — 없으면 안내만 보여준다(v2.17 이전 가입 계정) */
+  maskedEmail: string | null
+}) {
   const router = useRouter()
   const { update } = useSession()
+
+  const [loginId, setLoginId] = useState(me.loginId)
+  const [loginIdVerified, setLoginIdVerified] = useState(false)
+  const [loginIdSaving, setLoginIdSaving] = useState(false)
+  const [loginIdError, setLoginIdError] = useState<string | null>(null)
+  const [loginIdSaved, setLoginIdSaved] = useState(false)
 
   const [nickname, setNickname] = useState(me.nickname)
   const [zoneCode, setZoneCode] = useState<ZoneCode>(me.zoneCode)
@@ -95,6 +110,25 @@ export function EditProfileView({ me }: { me: { nickname: string; zoneCode: Zone
     }
   }
 
+  async function handleLoginIdSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!loginIdVerified || loginId === me.loginId) return
+    setLoginIdSaving(true)
+    setLoginIdError(null)
+    setLoginIdSaved(false)
+    try {
+      const result = await changeLoginId(loginId)
+      if (!result.ok) {
+        setLoginIdError(result.error)
+        return
+      }
+      setLoginIdSaved(true)
+      router.refresh()
+    } finally {
+      setLoginIdSaving(false)
+    }
+  }
+
   return (
     <>
       <AppHeader title="기본정보·비밀번호 수정" showBack />
@@ -148,6 +182,60 @@ export function EditProfileView({ me }: { me: { nickname: string; zoneCode: Zone
           >
             {profileSaving ? '저장하는 중...' : '기본정보 저장'}
           </Button>
+        </form>
+
+        <form
+          onSubmit={handleLoginIdSubmit}
+          className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm"
+        >
+          <h2 className="font-bold text-foreground">아이디 변경</h2>
+
+          {!maskedEmail ? (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              등록된 이메일이 없어 아이디 변경을 쓸 수 없어요. 이메일 인증은 회원가입 시에만 등록할 수 있어요.
+            </p>
+          ) : (
+            <>
+              {loginIdError && <p className="text-sm text-destructive">{loginIdError}</p>}
+              {loginIdSaved && <p className="text-sm text-status-ordered">아이디를 변경했어요.</p>}
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">새 아이디 (4~10자)</label>
+                <Input
+                  value={loginId}
+                  maxLength={10}
+                  onChange={(e) => {
+                    setLoginId(e.target.value)
+                    setLoginIdSaved(false)
+                  }}
+                  className="h-11 rounded-xl"
+                />
+              </div>
+
+              <EmailCodeVerifier
+                purpose="CHANGE_LOGIN_ID"
+                email=""
+                hideEmailInput
+                verified={loginIdVerified}
+                onVerified={() => setLoginIdVerified(true)}
+              />
+
+              <Button
+                type="submit"
+                disabled={loginIdSaving || !loginIdVerified || loginId.length < 4 || loginId === me.loginId}
+                className="h-11 w-full rounded-xl font-bold"
+              >
+                {loginIdSaving ? (
+                  '변경하는 중...'
+                ) : (
+                  <>
+                    <Check className="mr-1 size-4" />
+                    아이디 변경
+                  </>
+                )}
+              </Button>
+            </>
+          )}
         </form>
 
         <form

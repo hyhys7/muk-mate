@@ -187,6 +187,8 @@ export interface FriendsOverview {
 // 마이페이지 환경설정
 // ─────────────────────────────────────────────────────────────
 
+export type VerificationPurpose = 'SIGNUP' | 'FIND_ID' | 'RESET_PASSWORD' | 'CHANGE_LOGIN_ID'
+
 export interface UserPreferences {
   notifyFriendRequest: boolean
   notifyPotInvite: boolean

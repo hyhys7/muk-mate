@@ -1,6 +1,6 @@
 ---
 name: mukmate-mvp-scope-guard
-description: Use before considering a MukMate feature "done", when a task's scope is ambiguous, or when a request smells like scope creep (payments, phone/email/school verification, native app, real-time push, AI recommendation/matching, ratings/points). Triggers when reviewing a PR or deciding whether to build something not explicitly in the PRD.
+description: Use before considering a MukMate feature "done", when a task's scope is ambiguous, or when a request smells like scope creep (payments, phone/official-school verification, native app, real-time push, AI recommendation/matching, ratings/points). Triggers when reviewing a PR or deciding whether to build something not explicitly in the PRD. Note: email verification (@jbnu.ac.kr, signup/find-id/reset-password/change-id) is NOT scope creep as of v2.17 (§17-6) — check mukmate-auth before flagging it.
 ---
 
 Scope reference for MukMate's 5-day MVP sprint. Source of truth: `docs/PRD.md` §12, §13, §15, §18.
@@ -15,7 +15,9 @@ Scope reference for MukMate's 5-day MVP sprint. Source of truth: `docs/PRD.md` �
 
 ## Hard non-goals (§12) — flag immediately if a request touches these
 
-No native app · no in-app payment/remittance/escrow/auto-settlement (the split-cost display shows numbers only, never triggers a transfer) · no direct delivery-app integration · no live/background location tracking or exposing a user's live location · no user-created public rooms (only the 2 fixed ones) · no AI food recommendation or auto-matching · no school/phone/email/SMS verification · no password-reset/auto-recovery · no separate restaurant/courier accounts · no ratings/tiers/points/coupons · no push notifications (in-app badge only).
+No native app · no in-app payment/remittance/escrow/auto-settlement (the split-cost display shows numbers only, never triggers a transfer) · no direct delivery-app integration · no live/background location tracking or exposing a user's live location · no user-created public rooms (only the 2 fixed ones) · no AI food recommendation or auto-matching · no official school-system integration or phone/SMS verification (email-domain verification is the one exception, v2.17 §17-6 — don't flag it) · no separate restaurant/courier accounts · no ratings/tiers/points/coupons · no push notifications (in-app badge only).
+
+Password-reset/auto-recovery was also a hard non-goal until v2.17 — it now exists via email verification (§17-6). Don't flag it as scope creep either.
 
 ## Schedule-risk cut order (§15) — if the sprint slips, cut in this order
 

@@ -1,13 +1,15 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { AlertTriangle, Check, Loader2 } from 'lucide-react'
+import { Check, Loader2 } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
+import { EmailCodeVerifier } from '@/components/auth/email-code-verifier'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { checkLoginIdAvailable } from '@/lib/auth-client'
-import { SIGNUP_DRAFT_KEY } from '@/lib/constants'
+import { isSchoolEmail, SIGNUP_DRAFT_KEY } from '@/lib/constants'
 
 function Counter({ value, max }: { value: number; max: number }) {
   return (
@@ -26,15 +28,19 @@ export default function SignupPage() {
   const [idChecked, setIdChecked] = useState(false)
   const [checking, setChecking] = useState(false)
   const [checkError, setCheckError] = useState<string | null>(null)
+  const [email, setEmail] = useState('')
+  const [emailVerified, setEmailVerified] = useState(false)
 
   const passwordMismatch = passwordConfirm.length > 0 && password !== passwordConfirm
+  const emailError = email.length > 0 && !isSchoolEmail(email) ? '전북대 이메일(@jbnu.ac.kr)만 사용할 수 있어요.' : null
   const canSubmit =
     idChecked &&
     loginId.length >= 4 &&
     password.length >= 4 &&
     passwordConfirm.length > 0 &&
     nickname.length > 0 &&
-    !passwordMismatch
+    !passwordMismatch &&
+    emailVerified
 
   async function handleCheckId() {
     setChecking(true)
@@ -54,7 +60,7 @@ export default function SignupPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
-    sessionStorage.setItem(SIGNUP_DRAFT_KEY, JSON.stringify({ loginId, password, nickname }))
+    sessionStorage.setItem(SIGNUP_DRAFT_KEY, JSON.stringify({ loginId, password, nickname, email }))
     router.push('/onboarding')
   }
 
@@ -170,12 +176,20 @@ export default function SignupPage() {
             />
           </div>
 
-          {/* 안내 박스 */}
-          <div className="flex items-start gap-2.5 rounded-xl bg-primary-soft p-3.5">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-primary" />
-            <p className="text-sm leading-relaxed text-foreground">
-              휴대전화·이메일 인증이 없어 비밀번호를 잊으면 계정을 복구할 수 없습니다.
+          {/* 전북대 이메일 인증 (v2.17) */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold text-foreground">전북대 이메일 인증</label>
+            <p className="text-xs text-muted-foreground">
+              아이디·비밀번호를 잊었을 때 이 이메일로 복구할 수 있어요.
             </p>
+            <EmailCodeVerifier
+              purpose="SIGNUP"
+              email={email}
+              onEmailChange={setEmail}
+              emailError={emailError}
+              verified={emailVerified}
+              onVerified={() => setEmailVerified(true)}
+            />
           </div>
         </div>
 

@@ -9,6 +9,7 @@ import { REMEMBER_GUARD_COOKIE } from '@/lib/auth-constants'
 import { getDb, getPgErrorCode } from '@/lib/db'
 import {
   chatRooms,
+  emailVerifications,
   friendships,
   mannerEvents,
   mannerProfiles,
@@ -23,6 +24,7 @@ import {
   users,
 } from '@/lib/db/schema'
 import { DELETED_MESSAGE_PLACEHOLDER } from '@/lib/constants'
+import { sendVerificationEmail } from '@/lib/email'
 import { formatDateTime } from '@/lib/format'
 import { createNotificationBulk } from '@/lib/notifications'
 import { resolveViewerState } from '@/lib/pots/viewer-state'
@@ -49,6 +51,7 @@ import type {
   RoomReadEntry,
   User,
   UserPreferences,
+  VerificationPurpose,
   ZoneCode,
 } from '@/lib/types'
 
@@ -629,6 +632,79 @@ export async function getSessionUserOrNull(): Promise<User | null> {
     zoneCode: session.user.zoneCode as ZoneCode,
     role: session.user.role as User['role'],
   }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 전북대 이메일 인증(v2.17, §17-6) — 회원가입/아이디 찾기/비밀번호 찾기/아이디 변경 공용.
+// ─────────────────────────────────────────────────────────────
+
+const VERIFICATION_CODE_TTL_MS = 10 * 60 * 1000 // 코드 자체의 만료 — 10분
+// "코드 확인"과 "실제 액션(가입 제출 등)" 사이에 다른 화면(온보딩 등)을 거칠 수 있어 더 넉넉하게 둔다.
+const VERIFICATION_CONFIRMED_WINDOW_MS = 30 * 60 * 1000
+
+function generateVerificationCode(): string {
+  return String(Math.floor(100000 + Math.random() * 900000))
+}
+
+/** 인증코드를 새로 만들어 이메일로 보낸다. 최근 코드 재사용/무효화는 별도로 안 한다 —
+ *  verifyEmailCode()가 항상 "가장 최근에 발급된, 아직 안 쓴 코드"만 비교하므로 이전 코드는
+ *  자연히 무효가 된다(명시적으로 지우거나 상태를 바꿀 필요가 없다). */
+export async function createEmailVerification(
+  email: string,
+  purpose: VerificationPurpose,
+  userId?: string,
+): Promise<void> {
+  const db = getDb()
+  const code = generateVerificationCode()
+  const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS)
+
+  await db.insert(emailVerifications).values({ email, purpose, code, userId: userId ?? null, expiresAt })
+  await sendVerificationEmail(email, code, purpose)
+}
+
+/** 코드 확인 — 맞으면 그 자리에서 소모(consumedAt)하고 true. 이후 실제 액션은
+ *  hasRecentlyConfirmedEmail()로 "방금 확인했는지"만 재확인한다(코드를 다시 요구하지 않음). */
+export async function verifyEmailCode(email: string, purpose: VerificationPurpose, code: string): Promise<boolean> {
+  const db = getDb()
+  const [row] = await db
+    .select({ id: emailVerifications.id, code: emailVerifications.code, expiresAt: emailVerifications.expiresAt })
+    .from(emailVerifications)
+    .where(
+      and(
+        eq(emailVerifications.email, email),
+        eq(emailVerifications.purpose, purpose),
+        isNull(emailVerifications.consumedAt),
+      ),
+    )
+    .orderBy(desc(emailVerifications.createdAt))
+    .limit(1)
+
+  if (!row || row.code !== code || row.expiresAt.getTime() < Date.now()) return false
+
+  await db.update(emailVerifications).set({ consumedAt: new Date() }).where(eq(emailVerifications.id, row.id))
+  return true
+}
+
+/** 방금(30분 이내) 이 이메일+목적으로 코드 확인을 마쳤는지 — 회원가입 제출 등 다음 단계에서 재확인용.
+ *  consumedAt 기준으로 가장 최근 걸 본다(createdAt 기준이면, 확인 이후에 실수로 재발송만 하고
+ *  안 눌러본 새 코드가 최신 행이 돼서 "확인 안 한 것"으로 잘못 판정될 수 있다). */
+export async function hasRecentlyConfirmedEmail(email: string, purpose: VerificationPurpose): Promise<boolean> {
+  const db = getDb()
+  const [row] = await db
+    .select({ consumedAt: emailVerifications.consumedAt })
+    .from(emailVerifications)
+    .where(
+      and(
+        eq(emailVerifications.email, email),
+        eq(emailVerifications.purpose, purpose),
+        isNotNull(emailVerifications.consumedAt),
+      ),
+    )
+    .orderBy(desc(emailVerifications.consumedAt))
+    .limit(1)
+
+  if (!row?.consumedAt) return false
+  return Date.now() - row.consumedAt.getTime() < VERIFICATION_CONFIRMED_WINDOW_MS
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1607,6 +1683,13 @@ export async function applyAdminSanction(userId: string): Promise<void> {
 }
 
 /** 공개 프로필 화면(§12-2)용 최소 사용자 조회 */
+/** 마이페이지 보안 설정 — 이메일 등록 여부에 따라 아이디 변경 섹션을 보여줄지 판단 (v2.17) */
+export async function getMyEmail(userId: string): Promise<string | null> {
+  const db = getDb()
+  const [row] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1)
+  return row?.email ?? null
+}
+
 export async function getPublicUserProfile(userId: string): Promise<{ id: string; nickname: string } | undefined> {
   const db = getDb()
   const [row] = await db.select({ id: users.id, nickname: users.nickname }).from(users).where(eq(users.id, userId)).limit(1)

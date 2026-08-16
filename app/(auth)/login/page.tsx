@@ -95,12 +95,19 @@ function LoginForm() {
           </Button>
         </form>
 
-        <div className="mt-4 text-center">
+        <div className="mt-4 flex items-center justify-center gap-3 text-center">
           <Link
             href="/signup"
             className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
             회원가입
+          </Link>
+          <span className="text-border">|</span>
+          <Link
+            href="/find-account"
+            className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            아이디·비밀번호 찾기
           </Link>
         </div>
       </Card>

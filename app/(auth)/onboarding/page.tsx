@@ -20,6 +20,7 @@ interface SignupDraft {
   loginId: string
   password: string
   nickname: string
+  email: string
 }
 
 export default function OnboardingPage() {
@@ -64,6 +65,7 @@ export default function OnboardingPage() {
       password: draft.password,
       nickname,
       zoneCode: zone,
+      email: draft.email,
       avatarColor,
     })
     if (!result.ok) {

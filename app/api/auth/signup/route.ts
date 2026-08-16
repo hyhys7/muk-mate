@@ -5,7 +5,8 @@ import bcrypt from 'bcryptjs'
 
 import { getDb, getPgErrorCode } from '@/lib/db'
 import { mannerProfiles, users, zones } from '@/lib/db/schema'
-import { MANNER_AVATAR_COLOR_META } from '@/lib/constants'
+import { isSchoolEmail, MANNER_AVATAR_COLOR_META } from '@/lib/constants'
+import { hasRecentlyConfirmedEmail } from '@/lib/server-data'
 import type { MannerAvatarColor } from '@/lib/types'
 
 const LOGIN_ID_MIN = 4
@@ -27,6 +28,8 @@ export async function POST(request: Request) {
   const password = typeof body.password === 'string' ? body.password : ''
   const nickname = typeof body.nickname === 'string' ? body.nickname.trim() : ''
   const zoneCode = typeof body.zoneCode === 'string' ? body.zoneCode : ''
+  // v2.17(§17-6): 전북대 이메일 인증 필수 — /signup 화면에서 인증코드 확인까지 마쳐야 여기 도달한다.
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
   // v2.15: 온보딩에서 아바타 색상을 함께 고를 수 있다(선택) — 잘못된 값이 와도 가입 자체는 막지 않고 기본값으로 처리
   const avatarColor: MannerAvatarColor =
     typeof body.avatarColor === 'string' && body.avatarColor in MANNER_AVATAR_COLOR_META
@@ -51,12 +54,24 @@ export async function POST(request: Request) {
   if (!zoneCode) {
     return NextResponse.json({ error: '활동 지역을 선택해 주세요.' }, { status: 400 })
   }
+  if (!isSchoolEmail(email)) {
+    return NextResponse.json({ error: '전북대 이메일(@jbnu.ac.kr) 인증이 필요합니다.' }, { status: 400 })
+  }
+  // 코드를 다시 요구하지 않는다 — /signup 화면에서 이미 확인을 마쳤어야 여기까지 온다(30분 이내).
+  if (!(await hasRecentlyConfirmedEmail(email, 'SIGNUP'))) {
+    return NextResponse.json({ error: '이메일 인증을 먼저 완료해 주세요.' }, { status: 409 })
+  }
 
   const db = getDb()
 
   const [zone] = await db.select({ code: zones.code }).from(zones).where(eq(zones.code, zoneCode)).limit(1)
   if (!zone) {
     return NextResponse.json({ error: '올바르지 않은 활동 지역입니다.' }, { status: 400 })
+  }
+
+  const [existingEmail] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
+  if (existingEmail) {
+    return NextResponse.json({ error: '이미 가입에 사용된 이메일이에요.' }, { status: 409 })
   }
 
   const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.loginId, loginId)).limit(1)
@@ -69,7 +84,7 @@ export async function POST(request: Request) {
   try {
     const [created] = await db
       .insert(users)
-      .values({ loginId, passwordHash, nickname, zoneCode })
+      .values({ loginId, passwordHash, nickname, zoneCode, email })
       .returning({ id: users.id, nickname: users.nickname, zoneCode: users.zoneCode })
 
     // 매너 프로필은 첫 접근 시 lazy 생성이 기본(ensureMannerProfile)이지만, 온보딩에서 고른

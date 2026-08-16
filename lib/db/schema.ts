@@ -50,6 +50,12 @@ export const notificationTypeEnum = pgEnum('notification_type', [
 ])
 export const mannerRatingEnum = pgEnum('manner_rating', ['GOOD', 'NEUTRAL', 'BAD'])
 export const friendStatusEnum = pgEnum('friend_status', ['PENDING', 'ACCEPTED'])
+export const verificationPurposeEnum = pgEnum('verification_purpose', [
+  'SIGNUP',
+  'FIND_ID',
+  'RESET_PASSWORD',
+  'CHANGE_LOGIN_ID',
+])
 
 /** 활동 지역: 목록이 아직 미확정(PRD §17-1)이라 enum이 아니라 테이블로 분리 */
 export const zones = pgTable('zones', {
@@ -70,6 +76,9 @@ export const users = pgTable('users', {
   role: userRoleEnum('role').notNull().default('USER'), // 관리자 권한 검증 전용 — 셀프서비스로 바꿀 수 없음(DB에서 직접 부여)
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }), // 로그인(Credentials authorize) 성공 시에만 갱신 — 페이지 방문마다 갱신되지 않음
+  // v2.17(§17-6): @jbnu.ac.kr 이메일 인증. v2.17 이전 가입 계정은 NULL — 소급 강제하지 않는다.
+  // 다른 사용자에게 절대 노출하지 않는다(login_id와 동일 취급).
+  email: text('email').unique(),
 })
 
 export const pots = pgTable(
@@ -358,6 +367,24 @@ export const userPreferences = pgTable('user_preferences', {
   language: text('language').notNull().default('ko'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// 전북대 이메일 인증(v2.17, §17-6) — 6자리 코드, 10분 만료, 1회용(consumedAt).
+// code는 평문 저장(비밀번호와 달리 10분짜리 1회용이라 해시 불필요, §17-6 결정).
+// userId는 FIND_ID/RESET_PASSWORD/CHANGE_LOGIN_ID처럼 이미 존재하는 계정을 대상으로 할 때만 채워진다.
+export const emailVerifications = pgTable(
+  'email_verifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    purpose: verificationPurposeEnum('purpose').notNull(),
+    code: text('code').notNull(),
+    userId: uuid('user_id').references(() => users.id),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('idx_email_verifications_lookup').on(table.email, table.purpose, table.consumedAt)],
+)
 
 // re-export for callers that want a raw sql tag without importing drizzle-orm directly
 export { sql }

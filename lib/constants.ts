@@ -15,6 +15,21 @@ export const SIGNUP_DRAFT_KEY = 'mukmate:signup-draft'
 /** 카카오톡식 메시지 전체 삭제 시 표시하는 문구 — 서버(마스킹)와 클라이언트(낙관적 업데이트) 둘 다 이 값을 쓴다 */
 export const DELETED_MESSAGE_PLACEHOLDER = '삭제된 메시지예요'
 
+/** 이메일 인증(v2.17, §17-6) 대상 도메인 — 학사 시스템 연동이 아니라 도메인 문자열만 확인한다 */
+export const SCHOOL_EMAIL_DOMAIN = 'jbnu.ac.kr'
+
+export function isSchoolEmail(email: string): boolean {
+  return new RegExp(`^[^\\s@]+@${SCHOOL_EMAIL_DOMAIN.replace('.', '\\.')}$`, 'i').test(email)
+}
+
+/** "ab****@jbnu.ac.kr" 형태로 가려서 보여준다 — 어느 메일함을 확인해야 하는지만 알려주는 용도 */
+export function maskEmail(email: string): string {
+  const [local, domain] = email.split('@')
+  if (!domain) return email
+  const visible = local.slice(0, Math.min(2, local.length))
+  return `${visible}${'*'.repeat(Math.max(local.length - visible.length, 2))}@${domain}`
+}
+
 /** 활동 지역(권역) 고정값 */
 export const ZONES: Zone[] = [
   { code: 'GUJEONGMUN', label: '구정문 권역' },
