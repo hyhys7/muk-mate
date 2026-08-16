@@ -64,6 +64,13 @@
       "when": 1786863845580,
       "tag": "0008_flawless_firestar",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786864505392,
+      "tag": "0009_clumsy_nightshade",
+      "breakpoints": true
     }
   ]
 }

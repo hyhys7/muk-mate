@@ -223,7 +223,81 @@ export async function getPotById(id: string, viewerId?: string | null): Promise<
     maxPeople: pot.targetValue,
   })
 
+  // 거래 완료 전원동의 진행 상황 — CLOSED일 때만 의미가 있다(§5-1)
+  if (pot.status === 'CLOSED') {
+    const [{ total, confirmed }] = await db
+      .select({
+        total: count(),
+        confirmed: sql<number>`count(*) filter (where ${participations.completedAt} is not null)`,
+      })
+      .from(participations)
+      .where(and(eq(participations.potId, id), eq(participations.approvalStatus, 'APPROVED')))
+    pot.completionTotal = total
+    pot.completionConfirmedCount = Number(confirmed)
+    pot.viewerConfirmedCompletion = viewerId
+      ? Boolean(
+          (
+            await db
+              .select({ completedAt: participations.completedAt })
+              .from(participations)
+              .where(and(eq(participations.potId, id), eq(participations.userId, viewerId)))
+              .limit(1)
+          )[0]?.completedAt,
+        )
+      : false
+  }
+
   return pot
+}
+
+/**
+ * 거래 완료 전원동의 — CLOSED 상태에서 APPROVED 참여자(방장 포함) 전원이 동의를 채우면
+ * 자동으로 ORDERED 전이 + 알림 발송 + 채팅방 삭제(카카오톡처럼 거래 끝나면 방을 정리한다,
+ * messages는 chat_rooms FK cascade로 함께 삭제됨).
+ */
+export async function completeOrderIfConsensusReached(
+  potId: string,
+  storeName: string,
+  confirmingUserId: string,
+): Promise<{ completed: boolean }> {
+  const db = getDb()
+
+  const [{ total, confirmed }] = await db
+    .select({
+      total: count(),
+      confirmed: sql<number>`count(*) filter (where ${participations.completedAt} is not null)`,
+    })
+    .from(participations)
+    .where(and(eq(participations.potId, potId), eq(participations.approvalStatus, 'APPROVED')))
+
+  if (Number(confirmed) < total || total === 0) {
+    return { completed: false }
+  }
+
+  await db.update(pots).set({ status: 'ORDERED', orderedAt: new Date() }).where(eq(pots.id, potId))
+
+  const approvedMembers = await db
+    .select({ userId: participations.userId })
+    .from(participations)
+    .where(and(eq(participations.potId, potId), eq(participations.approvalStatus, 'APPROVED')))
+
+  const recipients = approvedMembers.map((m) => m.userId).filter((uid) => uid !== confirmingUserId)
+  await createNotificationBulk(
+    db,
+    recipients.map((uid) => ({
+      recipientId: uid,
+      type: 'POT_COMPLETED',
+      potId,
+      title: '공동주문이 완료되었어요',
+      body: `${storeName} 공동주문이 완료 처리되었어요.`,
+      actionPath: `/pots/${potId}`,
+      dedupeKey: `POT_COMPLETED:${potId}:${uid}`,
+    })),
+  )
+
+  await db.delete(chatRooms).where(eq(chatRooms.potId, potId))
+
+  return { completed: true }
 }
 
 /**

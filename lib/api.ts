@@ -72,6 +72,12 @@ export async function updatePotStatus(potId: string, status: PotStatus): Promise
   return data.pot
 }
 
+/** 거래 완료 전원동의 — POST /api/pots/:id/complete, CLOSED 상태의 승인된 참여자(방장 포함) 본인만 */
+export async function confirmOrderComplete(potId: string): Promise<{ pot: Pot; completed: boolean }> {
+  const res = await fetch(`/api/pots/${potId}/complete`, { method: 'POST' })
+  return parseJsonResponse<{ pot: Pot; completed: boolean }>(res)
+}
+
 /** 모집글 필드 수정(가게·수령장소·모집방식·활동권역 제외) — PATCH /api/pots/:id, 모집자 전용, OPEN 상태에서만 (ORDER-08) */
 export async function updatePot(
   potId: string,

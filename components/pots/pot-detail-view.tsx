@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft, Check, Clock, MapPin, Pencil, Share2, ShieldCheck, Smile, Trash2, Truck, Users } from 'lucide-react'
+import { ArrowLeft, Check, CheckCircle2, Clock, MapPin, Pencil, Share2, ShieldCheck, Smile, Trash2, Truck, Users } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -12,7 +12,14 @@ import { MannerAvatar } from '@/components/manner-avatar'
 import { ApprovalBadge, PotStatusBadge } from '@/components/status-badge'
 import { StoreAvatar } from '@/components/store-avatar'
 import { Progress } from '@/components/ui/progress'
-import { cancelJoinPot, decideMemberApplication, deletePot, requestJoinPot, updatePotStatus } from '@/lib/api'
+import {
+  cancelJoinPot,
+  confirmOrderComplete,
+  decideMemberApplication,
+  deletePot,
+  requestJoinPot,
+  updatePotStatus,
+} from '@/lib/api'
 import { zoneLabel } from '@/lib/constants'
 import { getFoodEmoji } from '@/lib/food-emoji'
 import { haversineDistanceMeters } from '@/lib/geo'
@@ -56,6 +63,7 @@ export function PotDetailView({
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [shared, setShared] = useState(false)
+  const [confirming, setConfirming] = useState(false)
 
   const deadline = formatDeadline(pot.deadlineAt)
   const isAmount = pot.targetType === 'AMOUNT'
@@ -133,6 +141,20 @@ export function PotDetailView({
       } finally {
         setLoading(false)
       }
+    }
+  }
+
+  async function handleConfirmComplete() {
+    if (confirming || pot.viewerConfirmedCompletion) return
+    if (!confirm('거래 완료에 동의하시겠어요? 참여자 전원이 동의하면 채팅방이 정리돼요.')) return
+    setConfirming(true)
+    try {
+      await confirmOrderComplete(pot.id)
+      router.refresh()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '처리에 실패했어요.')
+    } finally {
+      setConfirming(false)
     }
   }
 
@@ -236,6 +258,31 @@ export function PotDetailView({
           </span>
           <span aria-hidden>→</span>
         </Link>
+      )}
+
+      {/* 거래 완료 전원동의 CTA — 모집 마감 후, 승인된 참여자(방장 포함)만 */}
+      {pot.status === 'CLOSED' && (viewerState === 'HOST' || viewerState === 'MEMBER') && (
+        <div className="mx-4 flex flex-col gap-2 rounded-xl bg-primary/10 px-4 py-3">
+          <p className="text-sm font-semibold text-primary">
+            <CheckCircle2 className="mr-1.5 inline size-4 align-[-2px]" />
+            거래 완료 동의 {pot.completionConfirmedCount ?? 0}/{pot.completionTotal ?? 0}명
+          </p>
+          <p className="text-xs text-primary/80">
+            참여자 전원이 동의하면 자동으로 완료 처리되고 채팅방이 정리돼요.
+          </p>
+          <button
+            type="button"
+            onClick={handleConfirmComplete}
+            disabled={confirming || pot.viewerConfirmedCompletion}
+            className="flex h-11 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground transition active:scale-[0.98] disabled:opacity-60"
+          >
+            {pot.viewerConfirmedCompletion
+              ? '동의 완료 · 다른 참여자 대기 중'
+              : confirming
+                ? '처리 중...'
+                : '거래 완료에 동의하기'}
+          </button>
+        </div>
       )}
 
       {/* 방장용 참여 신청 목록 섹션 */}
@@ -436,15 +483,17 @@ export function PotDetailView({
         </section>
       )}
 
-      {/* 하단 고정 CTA */}
-      <JoinButton
-        potId={pot.id}
-        viewerState={viewerState}
-        loading={loading}
-        onOpenConfirmSheet={() => setShowConfirmSheet(true)}
-        onCancelRequest={handleCancelRequest}
-        onHostAction={handleHostClose}
-      />
+      {/* 하단 고정 CTA — 방장의 "모집 마감하기"는 OPEN일 때만. CLOSED부터는 위 전원동의 CTA가 그 역할을 이어받는다. */}
+      {(!isHost || pot.status === 'OPEN') && (
+        <JoinButton
+          potId={pot.id}
+          viewerState={viewerState}
+          loading={loading}
+          onOpenConfirmSheet={() => setShowConfirmSheet(true)}
+          onCancelRequest={handleCancelRequest}
+          onHostAction={handleHostClose}
+        />
+      )}
 
       {/* 참여 신청 확인 시트 */}
       <JoinConfirmSheet

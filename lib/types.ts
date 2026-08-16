@@ -83,6 +83,11 @@ export interface Pot {
   pendingCount?: number
   chatRoomId?: string
   createdAt: string
+  /** 거래 완료 전원동의 — CLOSED 상태일 때만 채워진다(§5-1) */
+  completionTotal?: number
+  completionConfirmedCount?: number
+  /** 조회자 본인이 이미 거래 완료에 동의했는지 (호스트/승인된 참여자만 의미 있음) */
+  viewerConfirmedCompletion?: boolean
 }
 
 /** 참여자 목록 등에서 함께 노출하는 최소 매너 정보 — 점수는 안 준다(§4-1 개별 화면 비공개 원칙), 표정용 stage만 */

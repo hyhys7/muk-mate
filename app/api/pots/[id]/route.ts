@@ -3,23 +3,24 @@ import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db'
 import { chatRooms, messages, participations, pots } from '@/lib/db/schema'
-import { createNotificationBulk } from '@/lib/notifications'
 import { cancelPotAndNotify, computeEffectiveStatus, getPotById, getSessionUserOrNull } from '@/lib/server-data'
 import type { PotStatus } from '@/lib/types'
 
 // PRD §5-1 상태 전이: OPEN → CLOSED → ORDERED, 그리고 (OPEN|CLOSED) → CANCELED.
 // ORDERED/CANCELED는 종료 상태 — 더 이상 전이하지 않는다.
+// CLOSED → ORDERED는 방장이 직접 PATCH할 수 없다 — APPROVED 참여자 전원(방장 포함)의
+// 동의가 필요한 전원동의 방식이라 POST /api/pots/:id/complete로만 도달한다.
 const ALLOWED_TRANSITIONS: Record<PotStatus, PotStatus[]> = {
   OPEN: ['CLOSED', 'CANCELED'],
-  CLOSED: ['ORDERED', 'CANCELED'],
+  CLOSED: ['CANCELED'],
   ORDERED: [],
   CANCELED: [],
 }
 
-// CANCELED는 cancelPotAndNotify()가 시스템 메시지까지 함께 처리한다.
+// CANCELED는 cancelPotAndNotify()가, ORDERED는 completeOrderIfConsensusReached()가
+// 시스템 메시지/알림을 각각 알아서 처리한다.
 const STATUS_SYSTEM_MESSAGE: Partial<Record<PotStatus, string>> = {
   CLOSED: '모집이 마감되었습니다.',
-  ORDERED: '주문이 완료되었습니다.',
 }
 
 const STORE_NAME_MAX = 60
@@ -190,10 +191,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ pot })
   }
 
-  await db
-    .update(pots)
-    .set({ status: nextStatus, ...(nextStatus === 'ORDERED' ? { orderedAt: new Date() } : {}) })
-    .where(eq(pots.id, id))
+  await db.update(pots).set({ status: nextStatus }).where(eq(pots.id, id))
 
   const systemMessage = STATUS_SYSTEM_MESSAGE[nextStatus]
   if (systemMessage) {
@@ -201,28 +199,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (room) {
       await db.insert(messages).values({ roomId: room.id, senderId: null, type: 'SYSTEM', content: systemMessage })
     }
-  }
-
-  // 🔔 알림 훅: ORDERED 상태 변경 알림
-  if (nextStatus === 'ORDERED') {
-    const approvedMembers = await db
-      .select({ userId: participations.userId })
-      .from(participations)
-      .where(and(eq(participations.potId, id), eq(participations.approvalStatus, 'APPROVED')))
-
-    const recipients = approvedMembers.map((m) => m.userId).filter((uid) => uid !== me.id)
-    await createNotificationBulk(
-      db,
-      recipients.map((uid) => ({
-        recipientId: uid,
-        type: 'POT_COMPLETED',
-        potId: id,
-        title: '공동주문이 완료되었어요',
-        body: `${row.storeName} 공동주문이 완료 처리되었어요.`,
-        actionPath: `/pots/${id}`,
-        dedupeKey: `POT_COMPLETED:${id}:${uid}`,
-      })),
-    )
   }
 
   const pot = await getPotById(id)
